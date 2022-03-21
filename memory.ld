@@ -13,19 +13,16 @@ SECTIONS
     .text :
     { 
         KEEP(*(.text._start));
-        KEEP(*(.text .text.*)) 
+        *(.text .text.*)
     }
 
-    .data : { KEEP(*(.data .data.*)) }
-    .rodata : { KEEP(*(.rodata .rodata.*)) }
+    .data : { *(.data .data.*) }
+    .rodata : { *(.rodata .rodata.*) }
 
     .bss :
     {
         . = ALIGN(16);
         KEEP(*(.bss .bss.*))
     }
-
-    .comment : { KEEP(*(.comment)) }
-    .debug : { KEEP(*(.debug*)) }
 
 }

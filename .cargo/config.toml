@@ -3,6 +3,7 @@
 target="aarch64-unknown-none"
 
 [target.aarch64-unknown-none]
+runner="qemu-system-aarch64 -M virt,highmem=off -smp 8 -m 2G -cpu cortex-a72 -serial stdio -monitor telnet:localhost:4444,server,nowait -gdb tcp::3333 -kernel"
 rustflags = [
     "-C", "link-arg=-Tmemory.ld"
 ]

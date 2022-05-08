@@ -23,5 +23,3 @@ device_register_map! {
     }
 }
 
-#[allow(dead_code)]
-static UART0: PL011::Registers = PL011::Registers(0x7e201000);

@@ -1,7 +1,7 @@
 use core::{
     stringify,
     concat,
-    arch::{global_asm, asm},
+    arch::asm,
 };
 
 macro_rules! system_register {

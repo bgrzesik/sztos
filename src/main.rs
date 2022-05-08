@@ -5,7 +5,10 @@
 mod arch;
 mod panic;
 mod drivers;
+mod platform;
 
-fn kernel_start() {
-    loop {}
+use platform::UART0;
+
+unsafe fn kernel_start() {
+    loop { }
 }

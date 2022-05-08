@@ -6,8 +6,8 @@ global_asm!(r#"
     .section .text._start
 
     _start:
-        adr x0, __boot_addr
-        mov sp, x0
+        ldr x30, =__stack_addr
+        mov sp, x30
         bl arch_start
     loop:
         b loop
@@ -15,4 +15,3 @@ global_asm!(r#"
     .global _start
     .size _start, . - _start
 "#);
-

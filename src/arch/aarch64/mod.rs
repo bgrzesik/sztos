@@ -3,10 +3,10 @@ use crate::kernel_start;
 mod boot;
 
 mod regs;
-use regs::*;
+pub use regs::*;
 
 mod instr;
-use instr::*;
+pub use instr::*;
 
 
 #[no_mangle]

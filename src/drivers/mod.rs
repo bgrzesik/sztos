@@ -1,35 +1,75 @@
 use crate::register::TypedRegister;
 
-pub trait DeviceRegister {
-    fn get_address(&self) -> usize;
+pub trait ReadableRegister {
 }
 
-pub trait ReadableRegister<T> : DeviceRegister {
-    unsafe fn get_ptr(&self) -> *const T {
+pub trait WritableRegister {
+}
+
+pub trait DeviceRegister<T> {
+    fn get_address(&self) -> usize;
+
+    unsafe fn get_ptr(&self) -> *const T
+        where Self: ReadableRegister
+    {
         (self.get_address() as *const ()) as *const T
     }
 
-    fn value(&self) -> T {
+    fn value(&self) -> T
+        where Self: ReadableRegister
+    {
         unsafe { core::ptr::read_volatile(self.get_ptr()) }
     }
-}
 
-pub trait WritableRegister<T> : DeviceRegister {
     // TODO(bgrzesik) reconsider switching to mut self
-    unsafe fn get_mut_ptr(&self) -> *mut T {
+    unsafe fn get_mut_ptr(&self) -> *mut T
+        where Self: WritableRegister
+    {
         (self.get_address() as *mut ()) as *mut T
     }
 
-    fn set_value(&self, value: T)  {
+    fn set_value(&self, value: T)
+        where Self: WritableRegister
+    {
         // TODO(bgrzesik) add barriers?
         unsafe { core::ptr::write_volatile(self.get_mut_ptr(), value) }
     }
 }
 
+pub trait TypedDeviceRegister<T, R: TypedRegister<T>>: DeviceRegister<T> {
+
+    fn typed(&self) -> R
+        where Self: ReadableRegister
+    {
+        R::from(self.value())
+    }
+
+    fn set_typed(&self, value: R)
+        where Self: WritableRegister
+    {
+        self.set_value(value.into());
+    }
+
+    fn update_typed<F, Z>(&self, update_fn: F) -> Z
+        where Self: ReadableRegister + WritableRegister,
+              F: FnOnce(&R) -> Z
+    {
+        let mut value: R = self.typed();
+        let ret: Z = update_fn(&mut value);
+        self.set_typed(value);
+
+        return ret;
+    }
+
+}
 
 #[macro_export]
 macro_rules! device_register_map {
     ////////////////////////////////////////////////////////////////////////////////////////////
+
+    (
+        !noop: $fields:tt
+    ) => {};
 
     (
         !typed_register ro, $reg:ident, $reg_ty:ty, $fields:tt
@@ -65,26 +105,26 @@ macro_rules! device_register_map {
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     (
-        !device_register ro, $reg:ident, $offset:literal, $reg_ty:ty
+        !device_register ro, $reg:ident
     ) => {
-        impl ReadableRegister<$reg_ty> for $reg {}
+        impl ReadableRegister for $reg {}
     };
 
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     (
-        !device_register wo, $reg:ident, $offset:literal, $reg_ty:ty
+        !device_register wo, $reg:ident
     ) => {
-        impl WritableRegister<$reg_ty> for $reg {}
+        impl WritableRegister for $reg {}
     };
 
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     (
-        !device_register rw, $reg:ident, $offset:literal, $reg_ty:ty
+        !device_register rw, $reg:ident
     ) => {
-        $crate::device_register_map!( !device_register ro, $reg, $offset, $reg_ty );
-        $crate::device_register_map!( !device_register wo, $reg, $offset, $reg_ty );
+        $crate::device_register_map!( !device_register ro, $reg );
+        $crate::device_register_map!( !device_register wo, $reg );
     };
 
     { 
@@ -94,8 +134,6 @@ macro_rules! device_register_map {
             $( : $fields:tt )?
          ),*
     } => {
-        use $crate::drivers::*;
-
         #[allow(dead_code)]
         #[allow(unused_attributes)]
         pub struct Registers(pub /* base */ usize);
@@ -106,16 +144,19 @@ macro_rules! device_register_map {
                 #[allow(dead_code)]
                 pub struct $reg(pub /* addr */ usize);
 
-                impl DeviceRegister for $reg {
+                impl DeviceRegister<$reg_ty> for $reg {
                     #[inline(always)]
                     fn get_address(&self) -> usize {
                         self.0
                     }
                 }
 
-                device_register_map!( !device_register $rw, $reg, $offset, $reg_ty );
+                device_register_map!( !device_register $rw, $reg );
                 $(
-                    $crate::device_register_map!( !typed_register $rw, $reg, $reg_ty, $fields );
+                    // This noop so code only spawns when $fields is present
+                    const _: &str = core::stringify!($rw, $reg, $reg_ty, $fields);
+
+                    impl TypedDeviceRegister<$reg_ty, super::typed::$reg> for $reg {}
                 )?
 
             )*

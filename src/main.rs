@@ -7,6 +7,7 @@ mod arch;
 mod panic;
 mod drivers;
 mod platform;
+mod register;
 
 use platform::UART0;
 

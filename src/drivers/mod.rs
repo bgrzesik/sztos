@@ -25,83 +25,9 @@ pub trait WritableRegister<T> : DeviceRegister<T> {
     }
 }
 
-/*
-
-            $reg:ident @ $offset:literal $rw:ident $reg_ty:ty 
-            $(  :
-                {
-                    $( $field:ident @ $bit:literal $( : $bit2:literal )? ),*
-                }
-             )?
-
-
-   */
 
 #[macro_export]
 macro_rules! device_register_map {
-
-    ////////////////////////////////////////////////////////////////////////////////////////////
-
-    ( !field_val $field:tt, $reg_ty:ty, $bit:literal,) => { 
-        ($field & (1 << $bit)) == (1 << $bit)
-    };
-
-    ( !field_val $field:tt, $reg_ty:ty, $bit:literal, $bit2:literal ) => {
-        {
-            let mask = (1 << ($bit - $bit2)) - 1;
-
-            ($field & (mask << $bit2)) >> $bit2
-        }
-    };
-
-    ( !field_num $field:tt, $reg_ty:ty, $bit:literal,) => { 
-        (if $field { 1 << $bit } else { 0 })
-    };
-
-    ( !field_num $field:tt, $reg_ty:ty, $bit:literal, $bit2:literal ) => {
-        {
-            let mask = (1 << ($bit - $bit2)) - 1;
-            (($field & mask) << $bit2) as $reg_ty
-        }
-    };
-
-    ( !field_type $reg_ty:ty, $bit:literal,) => { bool };
-
-    ( !field_type $reg_ty:ty, $bit:literal, $bit2: literal) => { $reg_ty };
-
-    ////////////////////////////////////////////////////////////////////////////////////////////
-
-    (
-        !register_fields $reg:ident, $reg_ty:ty, 
-        {
-            $( $field:ident @ $bit:literal $( : $bit2:literal )? ),*
-        }
-    ) => {
-
-        #[allow(dead_code)]
-        #[allow(non_snake_case)]
-        #[derive(Default)]
-        pub struct $reg {
-            $(
-                pub $field: device_register_map!( !field_type $reg_ty, $bit, $( $bit2 )? ),
-            )*
-        }
-
-        impl From<$reg> for $reg_ty {
-            fn from(val: $reg) -> Self {
-                0 $( | device_register_map!( !field_num (val.$field), $reg_ty, $bit, $( $bit2 )? ) )*
-            }
-        }
-
-        impl From<$reg_ty> for $reg {
-            fn from(val: $reg_ty) -> Self {
-                Self {
-                    $( $field: device_register_map!( !field_val val, $reg_ty, $bit, $( $bit2 )? ), )*
-                }
-            }
-        }
-    };
-
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     (
@@ -123,8 +49,8 @@ macro_rules! device_register_map {
     (
         !device_register rw, $reg:ident, $offset:literal, $reg_ty:ty
     ) => {
-        device_register_map!( !device_register ro, $reg, $offset, $reg_ty );
-        device_register_map!( !device_register wo, $reg, $offset, $reg_ty );
+        $crate::device_register_map!( !device_register ro, $reg, $offset, $reg_ty );
+        $crate::device_register_map!( !device_register wo, $reg, $offset, $reg_ty );
     };
 
     { 
@@ -132,8 +58,6 @@ macro_rules! device_register_map {
             // REG @ 0xffff u64 
             $reg:ident @ $offset:literal $rw:ident $reg_ty:ty 
             $( : $fields:tt )?
-
-            // TODO(bgrzesik) add flags
          ),*
     } => {
         use $crate::drivers::*;
@@ -162,7 +86,7 @@ macro_rules! device_register_map {
 
         $(
             $(
-                device_register_map!( !register_fields $reg, $reg_ty, $fields );
+                $crate::typed_register!( register $reg: $reg_ty $fields );
              )?
          )*
 

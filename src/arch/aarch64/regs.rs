@@ -4,6 +4,14 @@ use core::{
     arch::asm,
 };
 
+use crate::typed_register;
+
+typed_register! {
+    register DDD: u32 {
+        aaaa @ 11
+    }
+}
+
 macro_rules! system_register {
     ($name: ident, $reg: ident) => {
         #[inline(always)]

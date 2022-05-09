@@ -11,11 +11,11 @@ mod register;
 
 use platform::UART0;
 
-use drivers::pl011::Uart;
+use drivers::pl011::*;
 
 unsafe fn kernel_start() {
     loop { 
-        let mut uart = Uart::new(&UART0, 115200, 0, 1);
+        let mut uart = Uart::new(&UART0, 115200, StopBit::One, Some(Parity::Even));
 
         uart.reset();
 

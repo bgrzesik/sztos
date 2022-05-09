@@ -1,4 +1,7 @@
 
+pub trait TypedRegister<T> : From<T> + Into<T> {
+}
+
 #[macro_export]
 macro_rules! typed_register {
 
@@ -47,6 +50,9 @@ macro_rules! typed_register {
             $(
                 pub $field: $crate::typed_register!( !field_type $reg_ty, $bit, $( $bit2 )? ),
             )*
+        }
+
+        impl $crate::register::TypedRegister<$reg_ty> for $reg {
         }
 
         impl From<$reg> for $reg_ty {

@@ -1,9 +1,10 @@
+use crate::register::TypedRegister;
 
-pub trait DeviceRegister<T> {
+pub trait DeviceRegister {
     fn get_address(&self) -> usize;
 }
 
-pub trait ReadableRegister<T> : DeviceRegister<T> {
+pub trait ReadableRegister<T> : DeviceRegister {
     unsafe fn get_ptr(&self) -> *const T {
         (self.get_address() as *const ()) as *const T
     }
@@ -13,7 +14,7 @@ pub trait ReadableRegister<T> : DeviceRegister<T> {
     }
 }
 
-pub trait WritableRegister<T> : DeviceRegister<T> {
+pub trait WritableRegister<T> : DeviceRegister {
     // TODO(bgrzesik) reconsider switching to mut self
     unsafe fn get_mut_ptr(&self) -> *mut T {
         (self.get_address() as *mut ()) as *mut T
@@ -28,6 +29,39 @@ pub trait WritableRegister<T> : DeviceRegister<T> {
 
 #[macro_export]
 macro_rules! device_register_map {
+    ////////////////////////////////////////////////////////////////////////////////////////////
+
+    (
+        !typed_register ro, $reg:ident, $reg_ty:ty, $fields:tt
+    ) => {
+        impl $reg {
+            #[allow(dead_code)]
+            #[allow(unused_attributes)]
+            pub fn typed(&self) -> super::typed::$reg {
+                self.value().into()
+            }
+        }
+    };
+
+    (
+        !typed_register wo, $reg:ident, $reg_ty:ty, $fields:tt
+    ) => {
+        impl $reg {
+            #[allow(dead_code)]
+            #[allow(unused_attributes)]
+            pub fn set_typed(&self, typed: super::typed::$reg) {
+                self.set_value(typed.into());
+            }
+        }
+    };
+
+    (
+        !typed_register rw, $reg:ident, $reg_ty:ty, $fields:tt
+    ) => {
+        $crate::device_register_map!( !typed_register ro, $reg, $reg_ty, $fields );
+        $crate::device_register_map!( !typed_register wo, $reg, $reg_ty, $fields );
+    };
+
     ////////////////////////////////////////////////////////////////////////////////////////////
 
     (
@@ -72,7 +106,7 @@ macro_rules! device_register_map {
                 #[allow(dead_code)]
                 pub struct $reg(pub /* addr */ usize);
 
-                impl DeviceRegister<$reg_ty> for $reg {
+                impl DeviceRegister for $reg {
                     #[inline(always)]
                     fn get_address(&self) -> usize {
                         self.0
@@ -80,13 +114,19 @@ macro_rules! device_register_map {
                 }
 
                 device_register_map!( !device_register $rw, $reg, $offset, $reg_ty );
+                $(
+                    $crate::device_register_map!( !typed_register $rw, $reg, $reg_ty, $fields );
+                )?
 
             )*
         }
 
         $(
             $(
-                $crate::typed_register!( register $reg: $reg_ty $fields );
+                pub mod typed {
+                    $crate::typed_register!( register $reg: $reg_ty $fields );
+                }
+                pub use typed::*;
              )?
          )*
 

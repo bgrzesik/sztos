@@ -21,10 +21,10 @@ unsafe fn kernel_start() {
     loop { 
         let uart = &UART0;
 
-        let mut dr = DR::default();
-        dr.DATA = 'a' as u16;
-
-        uart.DR().set_value(dr.into());
+        uart.DR().set_typed(DR {
+            DATA: 'a' as u16,
+            ..Default::default()
+        });
 
         //loop {}
     }

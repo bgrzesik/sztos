@@ -11,21 +11,18 @@ mod register;
 
 use platform::UART0;
 
-use drivers::{
-    pl011::DR,
-    ReadableRegister,
-    WritableRegister,
-};
+use drivers::pl011::Uart;
 
 unsafe fn kernel_start() {
     loop { 
-        let uart = &UART0;
+        let mut uart = Uart::new(&UART0, 115200, 0, 1);
 
-        uart.DR().set_typed(DR {
-            DATA: 'a' as u16,
-            ..Default::default()
-        });
+        uart.reset();
 
-        //loop {}
+        for b in b"abc" {
+            uart.write_byte(*b);
+        }
+
+        loop {}
     }
 }

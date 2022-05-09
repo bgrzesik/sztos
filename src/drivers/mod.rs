@@ -52,7 +52,7 @@ pub trait TypedDeviceRegister<T, R: TypedRegister<T>>: DeviceRegister<T> {
 
     fn update_typed<F, Z>(&self, update_fn: F) -> Z
         where Self: ReadableRegister + WritableRegister,
-              F: FnOnce(&R) -> Z
+              F: FnOnce(&mut R) -> Z
     {
         let mut value: R = self.typed();
         let ret: Z = update_fn(&mut value);

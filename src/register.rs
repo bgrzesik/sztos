@@ -45,7 +45,7 @@ macro_rules! typed_register {
 
         #[allow(dead_code)]
         #[allow(non_snake_case)]
-        #[derive(Default)]
+        #[derive(Default, Clone, Copy)]
         pub struct $reg {
             $(
                 pub $field: $crate::typed_register!( !field_type $reg_ty, $bit, $( $bit2 )? ),

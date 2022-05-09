@@ -121,14 +121,14 @@ macro_rules! device_register_map {
             )*
         }
 
-        $(
+        pub mod typed {
             $(
-                pub mod typed {
+                $(
                     $crate::typed_register!( register $reg: $reg_ty $fields );
-                }
-                pub use typed::*;
-             )?
-         )*
+                 )?
+             )*
+        }
+        pub use typed::*;
 
         impl Registers {
             $(

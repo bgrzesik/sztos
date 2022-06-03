@@ -8,6 +8,10 @@ global_asm!(r#"
     _start:
         ldr x30, =__stack_addr
         mov sp, x30
+
+        ldr x0, =vector_table
+        msr VBAR_EL1, x0
+
         bl arch_start
     loop:
         b loop

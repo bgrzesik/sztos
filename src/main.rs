@@ -9,6 +9,8 @@ mod drivers;
 mod platform;
 mod register;
 
+use core::fmt::Write;
+
 use platform::UART0;
 
 use drivers::pl011::*;
@@ -16,12 +18,8 @@ use drivers::pl011::*;
 unsafe fn kernel_start() {
     loop { 
         let mut uart = Uart::new(&UART0, 115200, StopBit::One, Some(Parity::Even));
-
         uart.reset();
-
-        for b in b"abc" {
-            uart.write_byte(*b);
-        }
+        uart.write_str("abc");
 
         loop {}
     }

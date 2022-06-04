@@ -255,3 +255,17 @@ impl Uart {
         while self.reg.FR().typed().BUSY {}
     }
 }
+
+impl core::fmt::Write for Uart {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for c in s.bytes() {
+            self.write_byte(c);
+            if c == b'\n' {
+                self.write_byte(b'\r');
+            }
+        }
+
+        Ok(())
+    }
+}
+

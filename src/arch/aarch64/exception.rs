@@ -1,5 +1,6 @@
 
 use core::arch::global_asm;
+use core::fmt::Write;
 
 global_asm!(include_str!("exception.S"));
 
@@ -40,7 +41,6 @@ enum ExceptionType {
 }
 
 use crate::platform::UART0;
-
 use crate::drivers::pl011::*;
 
 #[no_mangle]
@@ -50,9 +50,7 @@ unsafe extern "C" fn return_func(a: u64) {
     uart.reset();
 
     for _ in 0..a {
-        for b in b"abcr12123\n" {
-            uart.write_byte(*b);
-        }
+        uart.write_str("abcr12123\n");
     }
 
     loop {}

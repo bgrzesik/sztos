@@ -196,7 +196,7 @@ pub struct Uart {
 }
 
 impl Uart {
-    pub fn new(cfg: &Config, baudrate: u32, stop: StopBit, parity: Option<Parity>) -> Self {
+    pub const fn new(cfg: &Config, baudrate: u32, stop: StopBit, parity: Option<Parity>) -> Self {
         let reg = Registers(cfg.base_addr);
 
         Self { reg, base_clk: cfg.base_clk, baudrate, stop, parity }

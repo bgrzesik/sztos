@@ -1,25 +1,32 @@
 
 #![no_std]
 #![no_main]
+#![feature(const_mut_refs)]
 
 
 mod arch;
 mod panic;
 mod drivers;
 mod platform;
+mod sync;
 mod register;
 
 use core::fmt::Write;
 
-use platform::UART0;
-
-use drivers::pl011::*;
+use platform::*;
 
 unsafe fn kernel_start() {
     loop { 
-        let mut uart = Uart::new(&UART0, 115200, StopBit::One, Some(Parity::Even));
-        uart.reset();
-        uart.write_str("abc");
+        core::arch::asm!("svc 1");
+
+
+        {
+            let uart = &mut *UART0.lock();
+            uart.reset();
+
+            uart.write_str("abc");
+        }
+
 
         loop {}
     }

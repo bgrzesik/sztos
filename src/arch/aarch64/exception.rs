@@ -40,12 +40,11 @@ enum ExceptionType {
     LowerELSpXSError        = 0x33,
 }
 
-use crate::platform::UART0;
-use crate::drivers::pl011::*;
+use crate::platform::*;
 
 #[no_mangle]
 unsafe extern "C" fn return_func(a: u64) {
-    let mut uart = Uart::new(&UART0, 115200, StopBit::One, Some(Parity::Even));
+    let mut uart = &mut *UART0.lock();
 
     uart.reset();
 

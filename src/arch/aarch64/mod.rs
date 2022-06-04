@@ -16,8 +16,6 @@ unsafe extern "C" fn arch_start() {
         Instr::wfe()
     }
 
-    core::arch::asm!("svc 1");
-
     kernel_start();
 
     loop {}

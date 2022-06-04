@@ -5,13 +5,18 @@ global_asm!(include_str!("exception.S"));
 
 #[repr(C)]
 struct RegisterDump {
-    xn:  [u64; 30],
-    elr: u64,
+    xn:  [u64; 31],
+
+    sp:  *mut (),
+    elr: *mut (),
+
     esr: u64,
     spsr: u64,
 }
 
+
 #[repr(u64)]
+#[allow(unused)]
 enum ExceptionType {
     CurrentELSp0Synchronous = 0x00,
     CurrentELSp0Irq         = 0x01,
@@ -34,7 +39,27 @@ enum ExceptionType {
     LowerELSpXSError        = 0x33,
 }
 
+use crate::platform::UART0;
+
+use crate::drivers::pl011::*;
+
+#[no_mangle]
+unsafe extern "C" fn return_func(a: u64) {
+    let mut uart = Uart::new(&UART0, 115200, StopBit::One, Some(Parity::Even));
+
+    uart.reset();
+
+    for _ in 0..a {
+        for b in b"abcr12123\n" {
+            uart.write_byte(*b);
+        }
+    }
+
+    loop {}
+}
+
 #[no_mangle]
 unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionType) {
-    loop {}
+    regs.xn[0] = 10;
+    regs.elr = return_func as usize as *mut ();
 }

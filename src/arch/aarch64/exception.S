@@ -1,11 +1,7 @@
 
-
-
-
 .macro STORE_CPU_STATE
-
     // Make place for registers
-    sub sp, sp, #8 * 33
+    sub sp, sp, #8 * 35
 
     stp  x0,  x1, [sp, #8 *  0]
     stp  x2,  x3, [sp, #8 *  2]
@@ -24,23 +20,61 @@
     stp x24, x25, [sp, #8 * 24]
     stp x26, x27, [sp, #8 * 26]
     stp x28, x29, [sp, #8 * 28]
+    str x30,      [sp, #8 * 30]
 
-    mrs x1, ELR_EL1
-    str x1, [sp, #8 * 30]
+    mov x0, sp
+    str x0, [sp, #8 * 31]
 
-    mrs x1, ESR_EL1
-    str x1, [sp, #8 * 31]
+    mrs x0, ELR_EL1
+    str x0, [sp, #8 * 32]
 
-    mrs x1, SPSR_EL1
-    str x1, [sp, #8 * 32]
+    mrs x0, ESR_EL1
+    str x0, [sp, #8 * 33]
 
+    mrs x0, SPSR_EL1
+    str x0, [sp, #8 * 34]
 .endm
+
+restore_cpu_state:
+    // Make place for registers
+
+    ldr x1,       [x0, #8 * 32]
+    msr ELR_EL1, x1
+
+    ldr x1,       [x0, #8 * 34]
+    msr SPSR_EL1, x1
+
+    ldr x1,       [x0, #8 * 31]
+    mov sp, x1
+
+    // ldr x30,      [x0, #8 * 30]
+    ldp x28, x29, [x0, #8 * 28]
+    ldp x26, x27, [x0, #8 * 26]
+    ldp x24, x25, [x0, #8 * 24]
+    ldp x22, x23, [x0, #8 * 22]
+    ldp x20, x21, [x0, #8 * 20]
+
+    ldp x18, x19, [x0, #8 * 18]
+    ldp x16, x17, [x0, #8 * 16]
+    ldp x14, x15, [x0, #8 * 14]
+    ldp x12, x13, [x0, #8 * 12]
+    ldp x10, x11, [x0, #8 * 10]
+
+    ldp  x8,  x9, [x0, #8 *  8]
+    ldp  x6,  x7, [x0, #8 *  6]
+    ldp  x4,  x5, [x0, #8 *  4]
+    ldp  x2,  x3, [x0, #8 *  2]
+    ldp  x0,  x1, [x0, #8 *  0]
+
+    ret
 
 .macro EXCEPTION_HANDER excep
     STORE_CPU_STATE
     mov x0, sp
     mov x1, \excep
     bl arch_exception
+    mov x0, sp
+    bl restore_cpu_state
     eret
 .endm
 

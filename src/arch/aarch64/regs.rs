@@ -14,6 +14,7 @@ typed_register! {
 
 macro_rules! system_register {
     ($name: ident, $reg: ident) => {
+        #[allow(unused)]
         #[inline(always)]
         pub unsafe fn $name() -> u64 {
             let mut reg: u64;
@@ -48,11 +49,13 @@ pub enum ExceptionLevel {
 }
 
 impl System {
+    #[allow(unused)]
     #[inline(always)]
     pub unsafe fn core_id() -> u16 {
         (SystemRegisters::mpidr_el1() & 0x03) as u16
     }
 
+    #[allow(unused)]
     #[inline(always)]
     pub unsafe fn exception_level() -> ExceptionLevel {
         match SystemRegisters::current_el() {

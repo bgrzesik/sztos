@@ -165,17 +165,20 @@ device_register_map! {
     }
 }
 
+#[allow(unused)]
 pub struct Config {
     pub base_addr: usize,
     pub base_clk: u64
 }
 
+#[allow(unused)]
 #[derive(PartialEq, Eq)]
 pub enum Parity {
     Odd,
     Even,
 }
 
+#[allow(unused)]
 #[derive(PartialEq, Eq)]
 pub enum StopBit {
     One,

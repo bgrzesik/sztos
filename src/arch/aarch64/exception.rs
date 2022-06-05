@@ -1,6 +1,12 @@
 
-use core::arch::global_asm;
-use core::fmt::Write;
+use core::{
+    fmt::Write,
+    arch::global_asm,
+};
+use crate::{
+    platform::*,
+    syscall::handle_syscall,
+};
 
 global_asm!(include_str!("exception.S"));
 
@@ -40,7 +46,27 @@ enum ExceptionType {
     LowerELSpXSError        = 0x33,
 }
 
-use crate::platform::*;
+#[repr(u8)]
+#[allow(unused)]
+enum ExceptionClass {
+    Aarch64SVC = 21
+}
+
+impl core::convert::TryFrom<u8> for ExceptionClass {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        use ExceptionClass::*;
+
+        Ok(match value {
+            21 => Aarch64SVC,
+
+            _ => {
+                return Err(());
+            }
+        })
+    }
+}
 
 #[no_mangle]
 unsafe extern "C" fn return_func(a: u64) {
@@ -57,6 +83,15 @@ unsafe extern "C" fn return_func(a: u64) {
 
 #[no_mangle]
 unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionType) {
-    regs.xn[0] = 10;
-    regs.elr = return_func as usize as *mut ();
+    let ec = (((0b111111 << 26) & regs.esr) >> 26) as u8;
+    let ec = ExceptionClass::try_from(ec);
+    let iss = 0xffffff & regs.esr;
+
+    match ec {
+        Ok(ExceptionClass::Aarch64SVC) => {
+            handle_syscall(iss, &mut regs.xn[..8], &mut regs.elr);
+        },
+        _ => panic!("Unknown ExceptionClass"),
+    }
+
 }

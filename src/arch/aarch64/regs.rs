@@ -65,6 +65,15 @@ impl SystemRegisters {
 }
 
 
+typed_register! {
+    register ExceptionSyndrom: u64 {
+        ISS2 @ 36:32,
+        EC   @ 31:26,
+        IL   @ 25,
+        ISS  @ 24:0
+    }
+}
+
 pub struct System;
 
 

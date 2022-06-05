@@ -4,6 +4,7 @@ use core::{
     arch::global_asm,
 };
 use crate::{
+    typed_register,
     platform::*,
     syscall::handle_syscall,
     arch::*,
@@ -70,27 +71,13 @@ impl core::convert::TryFrom<u8> for ExceptionClass {
 }
 
 #[no_mangle]
-unsafe extern "C" fn return_func(a: u64) {
-    let mut uart = &mut *UART0.lock();
-
-    uart.reset();
-
-    for _ in 0..a {
-        uart.write_str("abcr12123\n");
-    }
-
-    loop {}
-}
-
-#[no_mangle]
 unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionType) {
-    let ec = (((0b111111 << 26) & regs.esr) >> 26) as u8;
-    let ec = ExceptionClass::try_from(ec);
-    let iss = 0xffffff & regs.esr;
+    let esr = ExceptionSyndrom::from(regs.esr);
+    let ec = ExceptionClass::try_from(esr.EC as u8);
 
     match ec {
         Ok(ExceptionClass::Aarch64SVC) => {
-            handle_syscall(iss, &mut regs.xn[..8], &mut regs.elr);
+            handle_syscall(esr.ISS, &mut regs.xn[..8], &mut regs.elr);
         },
         _ => panic!("Unknown ExceptionClass"),
     }

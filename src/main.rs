@@ -11,10 +11,8 @@ mod platform;
 mod sync;
 mod register;
 mod syscall;
+mod memory;
 
-use core::fmt::Write;
-
-use platform::*;
 use arch::*;
 
 unsafe fn kernel_start() {
@@ -47,7 +45,7 @@ unsafe fn kernel_start() {
             in("x1") (s.len()));
 
         switch_to_userspace(userspace_start as usize as *mut (), 
-                            [0; 31], 
+                            [0; 31],
                             0x6000_0000 as *mut ());
 
         loop {}

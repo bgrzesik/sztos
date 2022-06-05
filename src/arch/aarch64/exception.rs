@@ -19,7 +19,6 @@ pub struct RegisterDump {
     pub sp:  *mut (),
     pub elr: *mut (),
 
-    pub esr: u64,
     pub spsr: u64,
 }
 
@@ -51,7 +50,7 @@ enum ExceptionType {
 #[repr(u8)]
 #[allow(unused)]
 enum ExceptionClass {
-    Aarch64SVC = 21
+    Aarch64SVC = 0b010101
 }
 
 impl core::convert::TryFrom<u8> for ExceptionClass {
@@ -72,7 +71,7 @@ impl core::convert::TryFrom<u8> for ExceptionClass {
 
 #[no_mangle]
 unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionType) {
-    let esr = ExceptionSyndrom::from(regs.esr);
+    let esr = System::esr();
     let ec = ExceptionClass::try_from(esr.EC as u8);
 
     match ec {
@@ -98,7 +97,6 @@ pub unsafe fn switch_to_userspace(elr: *mut (), regs: [u64; 31], sp: *mut ()) {
         xn: regs,
         sp,
         elr,
-        esr: 0, // ignored
         spsr: 0,
     };
 

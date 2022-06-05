@@ -54,16 +54,16 @@ impl SystemRegisters {
     system_register!(current_el, CurrentEL);
 
     system_register!(spsel, SPsel);
+    system_register!(esr, ESR_EL1);
 
     system_register_rw!(sp_el0,    set_sp_el0,    SP_EL0);
     system_register_rw!(sp_el1,    set_sp_el1,    SP_EL1);
     system_register_rw!(tcr_el0,   set_tcr_el0,   TCR_EL0);
     system_register_rw!(tcr_el1,   set_tcr_el1,   TCR_EL1);
     system_register_rw!(ttbr0_el0, set_ttbr0_el0, TTBR0_EL0);
-    system_register_rw!(ttbr0_el1, set_ttbr0_el1, TTBR0_EL0);
+    system_register_rw!(ttbr0_el1, set_ttbr0_el1, TTBR0_EL1);
     system_register_rw!(ttbr1_el1, set_ttbr1_el1, TTBR1_EL1);
 }
-
 
 typed_register! {
     register ExceptionSyndrom: u64 {
@@ -73,6 +73,23 @@ typed_register! {
         ISS  @ 24:0
     }
 }
+
+typed_register! {
+    register TranslationTableControl: u64 {
+        TBI   @ 38:37,
+        TG1   @ 31:30,
+        SH1   @ 29:28,
+        ORGN1 @ 27:26,
+        IRGN1 @ 25:24,
+        T1SZ  @ 21:16,
+        TG0   @ 15:14,
+        SH0   @ 13:12,
+        ORGN0 @ 11:10,
+        IRGN0 @ 9:8,
+        T0SZ  @ 5:0
+    }
+}
+
 
 pub struct System;
 
@@ -92,6 +109,12 @@ impl System {
     #[inline(always)]
     pub unsafe fn core_id() -> u16 {
         (SystemRegisters::mpidr_el1() & 0x03) as u16
+    }
+
+    #[allow(unused)]
+    #[inline(always)]
+    pub unsafe fn esr() -> ExceptionSyndrom {
+        ExceptionSyndrom::from(SystemRegisters::esr())
     }
 
     #[allow(unused)]

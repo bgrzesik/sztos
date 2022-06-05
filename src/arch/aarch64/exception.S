@@ -1,7 +1,7 @@
 
 .macro STORE_CPU_STATE
     // Make place for registers
-    sub sp, sp, #8 * 35
+    sub sp, sp, #8 * 34
 
     stp  x0,  x1, [sp, #8 *  0]
     stp  x2,  x3, [sp, #8 *  2]
@@ -28,22 +28,17 @@
     mrs x0, ELR_EL1
     str x0, [sp, #8 * 32]
 
-    mrs x0, ESR_EL1
-    str x0, [sp, #8 * 33]
-
     mrs x0, SPSR_EL1
-    str x0, [sp, #8 * 34]
+    str x0, [sp, #8 * 33]
 .endm
 
 .global restore_cpu_state
 restore_cpu_state:
-    // Make place for registers
+    ldr x1,       [x0, #8 * 33]
+    msr SPSR_EL1, x1
 
     ldr x1,       [x0, #8 * 32]
     msr ELR_EL1, x1
-
-    ldr x1,       [x0, #8 * 34]
-    msr SPSR_EL1, x1
 
     ldr x1,       [x0, #8 * 31]
     mov sp, x1

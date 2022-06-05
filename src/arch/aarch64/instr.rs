@@ -8,4 +8,9 @@ impl Instr {
     pub unsafe fn wfe() {
         asm!("wfe")
     }
+
+    #[inline(always)]
+    pub unsafe fn eret() {
+        asm!("eret")
+    }
 }

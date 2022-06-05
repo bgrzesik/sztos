@@ -6,19 +6,20 @@ use core::{
 use crate::{
     platform::*,
     syscall::handle_syscall,
+    arch::*,
 };
 
 global_asm!(include_str!("exception.S"));
 
 #[repr(C)]
-struct RegisterDump {
-    xn:  [u64; 31],
+pub struct RegisterDump {
+    pub xn:  [u64; 31],
 
-    sp:  *mut (),
-    elr: *mut (),
+    pub sp:  *mut (),
+    pub elr: *mut (),
 
-    esr: u64,
-    spsr: u64,
+    pub esr: u64,
+    pub spsr: u64,
 }
 
 
@@ -94,4 +95,26 @@ unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionTyp
         _ => panic!("Unknown ExceptionClass"),
     }
 
+}
+
+extern "C" {
+    fn restore_cpu_state(regs: &RegisterDump);
+
+    // There is no return from eret
+    fn restore_cpu_state_and_eret(regs: &RegisterDump) -> !;
+}
+
+pub unsafe fn switch_to_userspace(elr: *mut (), regs: [u64; 31], sp: *mut ()) {
+    assert_eq!(System::exception_level(), ExceptionLevel::Kernel);
+
+    let mut regs = RegisterDump {
+        xn: regs,
+        sp,
+        elr,
+        esr: 0, // ignored
+        spsr: 0,
+    };
+
+    SystemRegisters::set_sp_el0(sp as u64);
+    restore_cpu_state_and_eret(&mut regs);
 }

@@ -9,6 +9,7 @@ mod instr;
 pub use instr::*;
 
 mod exception;
+pub use exception::*;
 
 #[no_mangle]
 unsafe extern "C" fn arch_start() {

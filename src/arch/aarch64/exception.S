@@ -35,6 +35,7 @@
     str x0, [sp, #8 * 34]
 .endm
 
+.global restore_cpu_state
 restore_cpu_state:
     // Make place for registers
 
@@ -68,14 +69,18 @@ restore_cpu_state:
 
     ret
 
+.global restore_cpu_state_and_eret
+restore_cpu_state_and_eret:
+    bl restore_cpu_state
+    eret
+
 .macro EXCEPTION_HANDER excep
     STORE_CPU_STATE
     mov x0, sp
     mov x1, \excep
     bl arch_exception
     mov x0, sp
-    bl restore_cpu_state
-    eret
+    b restore_cpu_state_and_eret
 .endm
 
 /////////////////////////////////////////////////////////////////////////////

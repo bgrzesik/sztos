@@ -1,8 +1,6 @@
-
 #![no_std]
 #![no_main]
 #![feature(const_mut_refs)]
-
 
 mod arch;
 mod panic;

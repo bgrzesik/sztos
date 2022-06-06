@@ -22,7 +22,7 @@ impl<const N: usize> Granule<N> {
 pub type Granule512MiB = Granule<{ 512 * 1024 * 1024 }>;
 pub type Granule64KiB = Granule<{ 64 * 1024 }>;
 
-const LVL2_TABLES_COUNT: u64 = Granule64KiB::rshift(MEMORY_MAP_SIZE);
+const LVL2_TABLES_COUNT: u64 = Granule512MiB::rshift(MEMORY_MAP_SIZE);
 
 #[repr(u64)]
 #[derive(Clone, Copy)]

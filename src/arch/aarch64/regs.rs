@@ -6,6 +6,7 @@ use core::{
 
 use crate::typed_register;
 
+// ???
 typed_register! {
     register DDD: u32 {
         aaaa @ 11
@@ -63,6 +64,8 @@ impl SystemRegisters {
     system_register_rw!(ttbr0_el0, set_ttbr0_el0, TTBR0_EL0);
     system_register_rw!(ttbr0_el1, set_ttbr0_el1, TTBR0_EL1);
     system_register_rw!(ttbr1_el1, set_ttbr1_el1, TTBR1_EL1);
+    system_register_rw!(sctlr_el1, set_sctlr_el1, SCTLR_EL1);
+    system_register_rw!(mair_el1, set_mair_el1, MAIR_EL1);
 }
 
 typed_register! {
@@ -77,6 +80,7 @@ typed_register! {
 typed_register! {
     register TranslationTableControl: u64 {
         TBI   @ 38:37,
+        IPS   @ 34:32,
         TG1   @ 31:30,
         SH1   @ 29:28,
         ORGN1 @ 27:26,

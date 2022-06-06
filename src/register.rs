@@ -13,7 +13,7 @@ macro_rules! typed_register {
 
     ( !field_val $field:tt, $reg_ty:ty, $bit:literal, $bit2:literal ) => {
         {
-            let mask = (1 << ($bit - $bit2)) - 1;
+            let mask = (1 << ($bit - $bit2 + 1)) - 1;
 
             ($field & (mask << $bit2)) >> $bit2
         }
@@ -25,7 +25,7 @@ macro_rules! typed_register {
 
     ( !field_num $field:tt, $reg_ty:ty, $bit:literal, $bit2:literal ) => {
         {
-            let mask = (1 << ($bit - $bit2)) - 1;
+            let mask = (1 << ($bit - $bit2 + 1)) - 1;
             (($field & mask) << $bit2) as $reg_ty
         }
     };
@@ -52,12 +52,18 @@ macro_rules! typed_register {
             )*
         }
 
+        impl $reg {
+            const fn value(&self) -> $reg_ty {
+                0 $( | $crate::typed_register!( !field_num (self.$field), $reg_ty, $bit, $( $bit2 )? ) )*
+            }
+        }
+
         impl $crate::register::TypedRegister<$reg_ty> for $reg {
         }
 
         impl From<$reg> for $reg_ty {
             fn from(val: $reg) -> Self {
-                0 $( | $crate::typed_register!( !field_num (val.$field), $reg_ty, $bit, $( $bit2 )? ) )*
+                val.value()
             }
         }
 

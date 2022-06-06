@@ -36,8 +36,9 @@ global_asm!(r#"
 
 
     drop_el2_to_el1:
-        mov x0, #(1<<31)
-        msr hcr_el2, x0
+        mrs x0, HCR_EL2
+        orr x0, x0, #(1<<31)
+        msr HCR_EL2, x0
 
         mov x0, #(1 << 9 | 1 << 8 | 1 << 7 | 1 << 6 | 0b0101)
         msr SPSR_EL2, x0
@@ -54,13 +55,28 @@ global_asm!(r#"
         ldr x30, =__stack_addr
         mov sp, x30
 
-        ldr x0, =vector_table
+        bl zero_bss
+
+        adr x0, vector_table
         msr VBAR_EL1, x0
 
         bl arch_start
     loop:
         wfe
         b loop
+
+    zero_bss:
+        ldr x0, =__bss_begin
+        ldr x1, =__bss_end
+
+    zero_loop:
+        cmp x0, x1
+        b.eq zero_done
+        stp xzr, xzr, [x0], #16
+        b zero_loop
+
+    zero_done:
+        ret
 
     .global _start
     .size _start, . - _start

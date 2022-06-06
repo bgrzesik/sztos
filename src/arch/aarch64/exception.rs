@@ -50,7 +50,8 @@ enum ExceptionType {
 #[repr(u8)]
 #[allow(unused)]
 enum ExceptionClass {
-    Aarch64SVC = 0b010101
+    Aarch64SVC = 0b010101,
+    InstractionAbortSameEL = 0b100001,
 }
 
 impl core::convert::TryFrom<u8> for ExceptionClass {
@@ -78,6 +79,9 @@ unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionTyp
         Ok(ExceptionClass::Aarch64SVC) => {
             handle_syscall(esr.ISS, &mut regs.xn[..8], &mut regs.elr);
         },
+        Ok(ExceptionClass::InstractionAbortSameEL) => {
+            loop {}
+        }
         _ => panic!("Unknown ExceptionClass"),
     }
 

@@ -1,92 +1,145 @@
 use core::arch::asm;
 
-use crate::arch::aarch64::{SystemRegisters, TranslationTableControl, Instr};
+use crate::{
+    typed_register,
+    arch::*
+};
 
-use super::{KernelTranslationTable, PageDescriptorConfig, Granule};
+pub struct Granule<const N: usize>;
 
-pub const MEMORY_MAP_SIZE: u64 = 0xFFFF_FFFF + 1; // 4 GiB
-const ADDRESS_SIZE: u64 = 64 - Granule::<{ MEMORY_MAP_SIZE as usize }>::SHIFT;
+impl<const N: usize> Granule<N> {
+    pub const SHIFT: u64 = N.trailing_zeros() as u64;
+}
+
+pub type Granule512MiB = Granule<{ 512 * 1024 * 1024 }>;
+pub type Granule64KiB = Granule<{ 64 * 1024 }>;
+
+typed_register! {
+    register PageDescriptor: u64 {
+        UXN     @ 54,
+        PXN     @ 53,
+        ADDR    @ 47:16,
+        AF      @ 10,
+        SH      @ 9:8,
+        AP      @ 7:6,
+        INDEX   @ 5:2,
+        TYPE    @ 1,
+        VALID   @ 0
+    }
+}
+ 
+typed_register! {
+    register TableDescriptor: u64 {
+        ADDR    @ 47:16,
+        TYPE    @ 1,
+        VALID   @ 0
+    }
+}
+
+#[repr(C)]
+#[repr(align(65536))]
+pub struct TranslationTable<const N: usize> {
+    pub(crate) lvl3: [[u64; 8192]; N],
+    pub(crate) lvl2: [u64; N]
+}
+
+pub type KernelTranslationTable = TranslationTable<{ 0x1_0000_0000 >> Granule512MiB::SHIFT }>;
+
+impl<const N: usize> TranslationTable<N> {
+
+    pub const fn new() -> Self {
+        Self { 
+            lvl3: [[0; 8192]; N], 
+            lvl2: [0; N]
+        }
+    }
+
+    pub fn map_one_to_one(&mut self, config: &PageDescriptor) {
+        for i2 in 0..self.lvl2.len() {
+            let page = self.lvl3[i2].as_mut_ptr() as *mut () as u64;
+            let page = page >> Granule64KiB::SHIFT;
+
+            self.lvl2[i2] = TableDescriptor { ADDR: page, TYPE: true, VALID: true }.into();
+
+            for i3 in 0..self.lvl3[0].len() {
+                // let addr = ((i2 << Granule512MiB::SHIFT) + (i3 << Granule64KiB::SHIFT)) as u64;
+                // let addr = addr >> Granule64KiB::SHIFT;
+                let addr = (i2 * (512 * 1024 * 1024) + i3 * (64 * 1024)) as u64;
+                let addr = addr >> Granule64KiB::SHIFT;
+
+                self.lvl3[i2][i3] = PageDescriptor { ADDR: addr, ..*config }.into();
+            }
+        }
+    }
+}
 
 static mut table0: KernelTranslationTable = KernelTranslationTable::new();
 // static mut table1: KernelTranslationTable = KernelTranslationTable::new();
 
-const CONFIG: PageDescriptorConfig = PageDescriptorConfig {
-    uxn: false,     // user executable
-    pxn: true,      // aa.
-    sh: super::Shareability::InnerShareable,
-    af: true,       // shouldn't matter
-    ap: super::AccessPermission::ReadWrite,
-    index: 0,
-    r#type: true,     // ???
-    valid: true,
-};
 
 pub struct MMU;
 
 impl MMU {
-    fn tcr_configuration() -> u64 {
-        let tcr = TranslationTableControl {
-            TBI:    0b00,   // top byte is used in calculation
-            IPS:    0b010,  // use 40 bits of virtual address
-            
-            TG1:    0b11,   // 64 kb granule size
-            SH1:    0b11,   // inner shareable
-            ORGN1:  0b01,   // write-back rw alloc cacheable
-            IRGN1:  0b01,   // aa.
-            T1SZ:   ADDRESS_SIZE,
-            
-            TG0:    0b11,
-            SH0:    0b11,
-            ORGN0:  0b11,
-            IRGN0:  0b11,
-            T0SZ:   ADDRESS_SIZE,
-        };
-        
-        tcr.into()
-    }
+    pub unsafe fn enable() {
+        asm!("dsb ishst");
+        asm!("dsb ish");
+        asm!("isb");
 
-    unsafe fn setup_mair() {
-        SystemRegisters::set_mair_el1(
-            0x0044_04FFu64
+        table0.map_one_to_one(&PageDescriptor {
+            UXN: false,
+            PXN: false,
+
+            ADDR: 0,
+
+            AF: true,
+            SH: 0b11,
+            AP: 0b00,
+            INDEX: 0b001,
+            TYPE: true,
+            VALID: true,
+        });
+
+        SystemRegisters::set_ttbr0_el1(
+            table0.lvl2.as_mut_ptr() as *mut () as u64
         );
-    }
 
-    unsafe fn setup_ttbr0(table_address: u64) {
-        SystemRegisters::set_ttbr0_el1(table_address);
-    }
-
-    unsafe fn setup_ttbr1(table_address: u64) {
-        SystemRegisters::set_ttbr1_el1(table_address);
-    }
-
-    unsafe fn setup_tcr() {
         SystemRegisters::set_tcr_el1(
-            MMU::tcr_configuration()
+            0x0000000200807520
         );
-    }
 
-    unsafe fn enable_mmu() {
+        // SystemRegisters::set_tcr_el1(TranslationTableControl {
+        //     TBI:    0b00,
+        //     IPS:    0b010,
+
+        //     TG1:    0b11,
+        //     SH1:    0b11,
+        //     ORGN1:  0b01,
+        //     IRGN1:  0b01,
+        //     EPD1:   true,
+        //     A1:     false,
+        //     T1SZ:   64 - Granule64KiB::SHIFT,
+
+        //     TG0:    0b01,
+        //     SH0:    0b11,
+        //     ORGN0:  0b01,
+        //     IRGN0:  0b01,
+        //     EPD0:   false,
+        //     T0SZ:   64 - Granule64KiB::SHIFT,
+        // }.into());
+
+        // Instr::isb();
+
+        // SystemRegisters::set_mair_el1(
+        //     // 0x0044_04FFu64
+        //     0x000000000000ff04
+        // );
+
+        Instr::isb();
+
         SystemRegisters::set_sctlr_el1(
             SystemRegisters::sctlr_el1() | 0b1
         );
-    }
 
-    unsafe fn setup_registers() {
-        MMU::setup_ttbr0(table0.table_base_address());
-        // MMU::setup_ttbr1(table1.physical_base_address());
-        MMU::setup_mair();
-        MMU::setup_tcr();
-        // force changes to be seen by system
         Instr::isb();
-
-        MMU::enable_mmu();
-        Instr::isb();
-    }
-
-    pub unsafe fn enable() {
-        table0.map_one_to_one(&CONFIG);
-        // table1.map_one_to_one(&CONFIG);
-        
-        Self::setup_registers();
     }
 }

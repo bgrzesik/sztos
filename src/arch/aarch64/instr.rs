@@ -14,7 +14,13 @@ impl Instr {
         asm!("eret")
     }
 
+    #[inline(always)]
     pub unsafe fn isb() {
         asm!("isb")
+    }
+
+    #[inline(always)]
+    pub unsafe fn dsb() {
+        asm!("dsb ishst")
     }
 }

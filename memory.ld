@@ -25,15 +25,20 @@ SECTIONS
     { 
         KEEP(*(.text._start));
         *(.text .text.*)
+        . = ALIGN(64K);
+        __text_text = .;
     } : rx
 
     .data : { *(.data .data.*) } : rw
     .rodata : { *(.rodata .rodata.*) } : rw
 
-    .bss :
+    .bss (NOLOAD) :
     {
+        __bss_begin = .;
         . = ALIGN(16);
         KEEP(*(.bss .bss.*))
+        . = ALIGN(64K);
+        __bss_end = .;
     } : rw
 
 

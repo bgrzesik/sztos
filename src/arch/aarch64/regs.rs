@@ -78,11 +78,14 @@ typed_register! {
         SH1   @ 29:28,
         ORGN1 @ 27:26,
         IRGN1 @ 25:24,
+        EPD1  @ 23,
+        A1    @ 22,
         T1SZ  @ 21:16,
         TG0   @ 15:14,
         SH0   @ 13:12,
         ORGN0 @ 11:10,
         IRGN0 @ 9:8,
+        EPD0  @ 7,
         T0SZ  @ 5:0
     }
 }

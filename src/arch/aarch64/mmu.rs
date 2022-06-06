@@ -1,29 +1,27 @@
 use core::arch::asm;
 
-use crate::arch::aarch64::{SystemRegisters, TranslationTableControl};
+use crate::arch::aarch64::{SystemRegisters, TranslationTableControl, Instr};
 
-use super::{KernelTranslationTable, DescriptorConfig, Granule};
+use super::{KernelTranslationTable, PageDescriptorConfig, Granule};
 
 pub const MEMORY_MAP_SIZE: u64 = 0xFFFF_FFFF + 1; // 4 GiB
 const ADDRESS_SIZE: u64 = 64 - Granule::<{ MEMORY_MAP_SIZE as usize }>::SHIFT;
 
-pub struct MMU;
-
-static _MMU: MMU = MMU;
-
 static mut table0: KernelTranslationTable = KernelTranslationTable::new();
 // static mut table1: KernelTranslationTable = KernelTranslationTable::new();
 
-const CONFIG: DescriptorConfig = DescriptorConfig {
+const CONFIG: PageDescriptorConfig = PageDescriptorConfig {
     uxn: false,     // user executable
     pxn: true,      // aa.
     sh: super::Shareability::InnerShareable,
     af: true,       // shouldn't matter
     ap: super::AccessPermission::ReadWrite,
     index: 0,
-    TYPE: true,     // ???
+    r#type: true,     // ???
     valid: true,
 };
+
+pub struct MMU;
 
 impl MMU {
     fn tcr_configuration() -> u64 {
@@ -78,20 +76,17 @@ impl MMU {
         // MMU::setup_ttbr1(table1.physical_base_address());
         MMU::setup_mair();
         MMU::setup_tcr();
-        asm!("isb"); // force changes to be seen by system
+        // force changes to be seen by system
+        Instr::isb();
 
         MMU::enable_mmu();
-        asm!("isb");
+        Instr::isb();
     }
 
-    pub unsafe fn enable(&self) {
+    pub unsafe fn enable() {
         table0.map_one_to_one(&CONFIG);
         // table1.map_one_to_one(&CONFIG);
         
         Self::setup_registers();
     }
-}
-
-pub fn mmu() -> &'static MMU {
-    &_MMU
 }

@@ -13,4 +13,8 @@ impl Instr {
     pub unsafe fn eret() {
         asm!("eret")
     }
+
+    pub unsafe fn isb() {
+        asm!("isb")
+    }
 }

@@ -6,13 +6,6 @@ use core::{
 
 use crate::typed_register;
 
-// ???
-typed_register! {
-    register DDD: u32 {
-        aaaa @ 11
-    }
-}
-
 macro_rules! system_register {
     ($name: ident, $reg: ident) => {
         #[allow(unused)]
@@ -65,7 +58,7 @@ impl SystemRegisters {
     system_register_rw!(ttbr0_el1, set_ttbr0_el1, TTBR0_EL1);
     system_register_rw!(ttbr1_el1, set_ttbr1_el1, TTBR1_EL1);
     system_register_rw!(sctlr_el1, set_sctlr_el1, SCTLR_EL1);
-    system_register_rw!(mair_el1, set_mair_el1, MAIR_EL1);
+    system_register_rw!(mair_el1, set_mair_el1,   MAIR_EL1);
 }
 
 typed_register! {

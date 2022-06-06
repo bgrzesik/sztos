@@ -23,8 +23,7 @@ unsafe extern "C" fn arch_start() {
         Instr::wfe()
     }
 
-    let m = mmu();
-    m.enable();
+    MMU::enable();
 
     kernel_start();
 

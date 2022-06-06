@@ -74,7 +74,7 @@ impl MMU {
     }
 
     unsafe fn setup_registers() {
-        // MMU::setup_ttbr0(table0.table_base_address());
+        MMU::setup_ttbr0(table0.table_base_address());
         // MMU::setup_ttbr1(table1.physical_base_address());
         MMU::setup_mair();
         MMU::setup_tcr();

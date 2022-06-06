@@ -40,26 +40,34 @@ pub enum Shareability {
     InnerShareable = 0b11
 }
 
-pub struct DescriptorConfig {
+pub struct PageDescriptorConfig {
     pub uxn: bool,
     pub pxn: bool,
     pub af: bool,
     pub sh: Shareability,
     pub ap: AccessPermission,
     pub index: u64,
-    pub TYPE: bool,
+    pub r#type: bool,
     pub valid: bool
 }
 
 typed_register! {
-    register DescriptorReg: u64 {
+    register PageDescriptor: u64 {
         UXN     @ 54,
         PXN     @ 53,
-        ADDR    @ 47 : 16,
+        ADDR    @ 47:16,
         AF      @ 10,
-        SH      @ 9 : 8,
-        AP      @ 7 : 6,
-        INDEX   @ 5 : 2,
+        SH      @ 9:8,
+        AP      @ 7:6,
+        INDEX   @ 5:2,
+        TYPE    @ 1,
+        VALID   @ 0
+    }
+}
+ 
+typed_register! {
+    register TableDescriptor: u64 {
+        ADDR    @ 47:16,
         TYPE    @ 1,
         VALID   @ 0
     }
@@ -68,8 +76,8 @@ typed_register! {
 #[repr(C)]
 #[repr(align(65536))]
 pub struct TranslationTable<const N: usize> {
-    lvl3: [[DescriptorReg; 8192]; N],
-    lvl2: [DescriptorReg; N]
+    lvl3: [[u64; 8192]; N],
+    lvl2: [u64; N]
 }
 
 pub type KernelTranslationTable = TranslationTable<{ LVL2_TABLES_COUNT as usize }>;
@@ -91,44 +99,47 @@ impl<const N: usize> TranslationTable<N> {
 
     pub const fn new() -> Self {
         Self { 
-            lvl3: [[DescriptorReg::new(); 8192]; N], 
-            lvl2: [DescriptorReg::new(); N]
+            lvl3: [[0; 8192]; N], 
+            lvl2: [0; N]
         }
     }
 
-    pub fn map_one_to_one(&mut self, config: &DescriptorConfig) {
+    pub fn map_one_to_one(&mut self, config: &PageDescriptorConfig) {
         for (i2, a2) in self.lvl2.iter_mut().enumerate() {
-            *a2 = DescriptorReg::from_addr_with_config(
-                self.lvl3[i2].physical_address(), 
-                config
-            );
+            *a2 = TableDescriptor::from_addr(
+                self.lvl3[i2 as usize].physical_address()
+            ).into();
 
             for (i3, a3) in self.lvl3[i2].iter_mut().enumerate() {
-                *a3 = DescriptorReg::from_addr_with_config(
+                *a3 = PageDescriptor::from_addr_with_config(
                     Granule512MiB::lshift(i2 as u64) + Granule64KiB::lshift(i3 as u64),
                     config
-                );
+                ).into();
             }
         }
     }
 }
 
-impl DescriptorReg {
+impl TableDescriptor {
     fn from_addr(addr: u64) -> Self {
-        Self { 
-            UXN: false, 
-            PXN: false, 
-            ADDR: Granule64KiB::rshift(addr),
-            AF: false, 
-            SH: 0, 
-            AP: 0, 
-            INDEX: 0,
-            TYPE: false,
-            VALID: false
+        Self {
+            ADDR: addr,
+            TYPE: true,
+            VALID: true,
         }
     }
 
-    fn from_addr_with_config(addr: u64, config: &DescriptorConfig) -> Self {
+    const fn new() -> Self {
+        Self { 
+            ADDR: 0u64,
+            TYPE: false, 
+            VALID: false 
+        }
+    }
+}
+
+impl PageDescriptor {
+    fn from_addr_with_config(addr: u64, config: &PageDescriptorConfig) -> Self {
         Self {
             UXN: config.uxn,
             PXN: config.pxn,
@@ -137,7 +148,7 @@ impl DescriptorReg {
             SH: config.sh as u64,
             AP: config.ap as u64,
             INDEX: config.index,
-            TYPE: config.TYPE,
+            TYPE: config.r#type,
             VALID: config.valid
         }
     }
@@ -146,11 +157,11 @@ impl DescriptorReg {
         Self { 
             UXN: false, 
             PXN: false, 
-            ADDR: 0, 
+            ADDR: 0u64, 
             AF: false, 
             SH: 0, 
             AP: 0, 
-            INDEX: 0,
+            INDEX: 0, 
             TYPE: false, 
             VALID: false 
         }

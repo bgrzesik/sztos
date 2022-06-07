@@ -17,20 +17,6 @@ use arch::*;
 
 unsafe fn kernel_start() {
     loop { 
-        let s = "ABCDDD\n";
-        core::arch::asm!("
-            svc 1
-        ",
-            in("x0") (s.as_ptr()),
-            in("x1") (s.len()));
-
-        let s = "12123123\n";
-        core::arch::asm!("
-            svc 1
-        ",
-            in("x0") (s.as_ptr()),
-            in("x1") (s.len()));
-
         let s = match arch::System::exception_level() {
             arch::ExceptionLevel::User          => "Userspace\n",
             arch::ExceptionLevel::Kernel        => "Kernel\n",
@@ -38,15 +24,14 @@ unsafe fn kernel_start() {
             arch::ExceptionLevel::SecureMonitor => "SecureMonitor\n",
             arch::ExceptionLevel::Unknown       => "Userspace\n",
         };
-        core::arch::asm!("
-            svc 1
-        ",
+
+        core::arch::asm!("svc 1",
             in("x0") (s.as_ptr()),
             in("x1") (s.len()));
 
         switch_to_userspace(userspace_start as usize as *mut (), 
                             [0; 31],
-                            0x6000_0000 as *mut ());
+                            0x4000_0000 as *mut ());
 
         loop {}
     }
@@ -54,7 +39,7 @@ unsafe fn kernel_start() {
 
 unsafe fn userspace_start() {
     // CurrentEL is not accesible at EL0, reading causes trap
-    let s = "Userspace";
+    let s = "Userspace\n";
     core::arch::asm!("
         svc 1
     ",

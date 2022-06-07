@@ -49,7 +49,7 @@ impl <T> SpinLock<T> {
     pub fn lock<'l>(&'l mut self) -> LockGuard<'l, T> {
         loop {
             if self.lock.compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
-                assert!(self.lock.load(Ordering::SeqCst));
+                assert!(!self.lock.load(Ordering::SeqCst));
                 return LockGuard { spin: self };
             }
         }
@@ -64,7 +64,9 @@ impl <T> SpinLock<T> {
     }
 
     pub fn unlock(&mut self) {
-        self.lock.store(true, Ordering::SeqCst)
+        assert!(!self.lock.load(Ordering::SeqCst));
+        self.lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+        assert!(self.lock.load(Ordering::SeqCst));
     }
 
 }

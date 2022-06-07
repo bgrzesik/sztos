@@ -4,26 +4,38 @@ ENTRY(__boot_addr);
 
 EXTERN(__stack_addr);
 
+PHDRS
+{
+    ro PT_LOAD FLAGS(4);
+    rx PT_LOAD FLAGS(5);
+    rw PT_LOAD FLAGS(6);
+}
+
 SECTIONS
 {
-    . = __boot_addr;
+    . = 0x00000000;
+
+    .boot_stack (NOLOAD) :
+    {
+        . += __boot_addr;
+        __stack_addr = .;
+    } : rw
+
     .text :
     { 
         KEEP(*(.text._start));
         *(.text .text.*)
-    }
+    } : rx
 
-    .data : { *(.data .data.*) }
-    .rodata : { *(.rodata .rodata.*) }
+    .data : { *(.data .data.*) } : rw
+    .rodata : { *(.rodata .rodata.*) } : rw
 
     .bss :
     {
         . = ALIGN(16);
         KEEP(*(.bss .bss.*))
-    }
+    } : rw
 
 
 
-    . = 0x80000000;
-    __stack_addr = .;
 }

@@ -29,7 +29,11 @@ unsafe fn kernel_start() {
         core::arch::asm!("dc    IVAC, x0", in("x0") (p1));
         core::arch::asm!("dc    IVAC, x0", in("x0") (p2));
 
-        MMU::swap_pages(p1, p2);
+        core::arch::asm!("svc 0");
+        core::arch::asm!("svc 1", in("x0") (p1), in("x1") (hello_le.len()));
+        core::arch::asm!("svc 1", in("x0") (p2), in("x1") (world_le.len()));
+
+        demo::mmu_swap_pages(p1, p2);
 
         core::arch::asm!("svc 0");
         core::arch::asm!("svc 1", in("x0") (p1), in("x1") (hello_le.len()));

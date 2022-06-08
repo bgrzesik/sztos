@@ -6,11 +6,11 @@ const fn calc_size_shift(size: u64) -> u64 {
     size.trailing_zeros() as u64
 }
 
-mod desc;
+pub mod desc;
 
 const SHIFT_4G: u64 = calc_size_shift(4 * 1024 * 1024 * 1024);
-const SHIFT_512M: u64 = calc_size_shift(512 * 1024 * 1024);
 const SHIFT_64K: u64 = calc_size_shift(64 * 1024);
+const SHIFT_512M: u64 = calc_size_shift(512 * 1024 * 1024);
 
 typed_register! {
     register PageDescriptor: u64 {
@@ -38,19 +38,70 @@ typed_register! {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone)]
 #[repr(align(65536))]
-pub struct TranslationTable<const N: usize> {
-    pub(crate) l3: [[u64; 8192]; N],
-    pub(crate) l2: [u64; N],
+pub struct Level3TranslationTable {
+    pub(crate) pages: [u64; 8192],
 }
 
-pub type TranslationTable4G = TranslationTable<{ 1 << (SHIFT_4G - SHIFT_512M) as usize }>;
+impl Level3TranslationTable {
+    pub const fn zeroed() -> Self {
+        Self { pages: [0; 8192] }
+    }
+
+    pub const fn address_to_index(address: u64) -> usize {
+        const L3_SIZE: u64 = 1 << 13;
+        ((address >> SHIFT_64K) & (L3_SIZE - 1)) as usize
+    }
+
+    pub fn page_desc(&self, addr: u64) -> PageDescriptor {
+        self.pages[Self::address_to_index(addr)].into()
+    }
+
+    pub fn set_page_desc(&mut self, addr: u64, desc: &PageDescriptor) {
+        self.pages[Self::address_to_index(addr)] = (*desc).into();
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+#[repr(align(65536))]
+pub struct Level2TranslationTable<const N: usize> {
+    pub(crate) tables: [u64; N],
+}
+
+impl<const N: usize> Level2TranslationTable<N> {
+    pub const fn zeroed() -> Self {
+        Self { tables: [0; N] }
+    }
+
+    pub const fn address_to_index(address: u64) -> usize {
+        ((address >> SHIFT_512M) & ((1 << N) - 1)) as usize
+    }
+
+    pub fn table_desc(&self, addr: u64) -> TableDescriptor {
+        self.tables[Self::address_to_index(addr)].into()
+    }
+
+    pub fn set_table_desc(&mut self, addr: u64, desc: &TableDescriptor) {
+        self.tables[Self::address_to_index(addr)] = (*desc).into();
+    }
+}
+
+#[repr(C)]
+#[repr(align(65536))]
+pub struct TranslationTable<const N: usize> {
+    pub(crate) l3: [Level3TranslationTable; N],
+    pub(crate) l2: Level2TranslationTable<N>,
+}
+
+pub type TranslationTable4G = TranslationTable<{ 0x4_0000_0000 / (1 << SHIFT_512M) }>;
 
 impl<const N: usize> TranslationTable<N> {
     pub const fn zeroed() -> Self {
         Self {
-            l3: [[0; 8192]; N],
-            l2: [0; N],
+            l3: [Level3TranslationTable::zeroed(); N],
+            l2: Level2TranslationTable::<N>::zeroed(),
         }
     }
 
@@ -59,31 +110,21 @@ impl<const N: usize> TranslationTable<N> {
         let end_addr = 0x1_0000_0000u64;
 
         for addr in (start_addr..end_addr).step_by(1 << SHIFT_512M) {
-            let (i2, _) = Self::table_index_from_address(addr);
-
-            let page = self.l3[i2].as_mut_ptr() as *mut () as u64;
+            let i2 = Level2TranslationTable::<N>::address_to_index(addr);
+            let page = self.l3[i2].pages.as_mut_ptr() as *mut () as u64;
             let page = page >> SHIFT_64K;
 
-            self.set_table_desc(
-                addr,
-                &TableDescriptor {
-                    AP: desc::AP::ReadWriteEL1 as u64,
-                    ADDR: page,
-                    TYPE: true,
-                    VALID: true,
-                },
-            );
+            self.set_table_desc(addr, &TableDescriptor {
+                AP: desc::AP::ReadWriteEL1 as u64,
+                ADDR: page,
+                TYPE: true,
+                VALID: true,
+            });
         }
 
         for addr in (start_addr..end_addr).step_by(1 << SHIFT_64K) {
-            let offset = addr >> SHIFT_64K;
-            self.set_page_desc(
-                addr,
-                &PageDescriptor {
-                    ADDR: offset as u64,
-                    ..*config
-                },
-            );
+            let offset = (addr >> SHIFT_64K) as u64;
+            self.set_page_desc(addr, &PageDescriptor { ADDR: offset, ..*config });
         }
 
         for addr in (0x3000_0000..0x4000_0000).step_by(1 << SHIFT_64K) {
@@ -94,54 +135,45 @@ impl<const N: usize> TranslationTable<N> {
     }
 
     pub fn table_desc(&self, addr: u64) -> TableDescriptor {
-        let (i2, _) = Self::table_index_from_address(addr);
-        self.l2[i2].into()
+        self.l2.table_desc(addr)
     }
 
     pub fn set_table_desc(&mut self, addr: u64, desc: &TableDescriptor) {
-        let (i2, _) = Self::table_index_from_address(addr);
-        self.l2[i2] = (*desc).into();
+        self.l2.set_table_desc(addr, desc)
     }
 
     pub fn page_desc(&self, addr: u64) -> PageDescriptor {
-        let (i2, i3) = Self::table_index_from_address(addr);
-        self.l3[i2][i3].into()
+        let i2 = Level2TranslationTable::<N>::address_to_index(addr);
+        self.l3[i2].page_desc(addr)
     }
 
     pub fn set_page_desc(&mut self, addr: u64, desc: &PageDescriptor) {
-        let (i2, i3) = Self::table_index_from_address(addr);
-        self.l3[i2][i3] = (*desc).into();
+        let i2 = Level2TranslationTable::<N>::address_to_index(addr);
+        self.l3[i2].set_page_desc(addr, desc)
     }
 
-    pub const fn table_index_from_address(address: u64) -> (usize, usize) {
-        const L3_SIZE: u64 = 1 << 13;
-        let i2 = (address >> SHIFT_512M) & ((1 << N) - 1);
-        let i3 = (address >> SHIFT_64K) & (L3_SIZE - 1);
-        (i2 as usize, i3 as usize)
+    pub const fn address_to_index(address: u64) -> (usize, usize) {
+        (
+            Level2TranslationTable::<N>::address_to_index(address),
+            Level3TranslationTable::address_to_index(address)
+        )
+    }
+
+    pub fn base_address(&self) -> u64 {
+        self.l2.tables.as_ptr() as u64
     }
 }
-
-static mut IDENTITY_TABLE: TranslationTable4G = TranslationTable4G::zeroed();
 
 pub struct MMU;
 
 impl MMU {
-    pub unsafe fn enable() {
-        IDENTITY_TABLE.set_to_identity(&PageDescriptor {
-            UXN: false,
-            PXN: false,
 
-            ADDR: 0,
+    pub unsafe fn set_tables(ttbr0: u64, ttbr1: Option<u64>) {
+        SystemRegisters::set_ttbr0_el1(ttbr0);
 
-            AF: true,
-            SH: desc::SH::InnerShareable as u64,
-            AP: 0b00,
-            INDEX: 0b000,
-            TYPE: true,
-            VALID: true,
-        });
-
-        SystemRegisters::set_ttbr0_el1(IDENTITY_TABLE.l2.as_mut_ptr() as *mut () as u64);
+        if let Some(ttbr1) = ttbr1 {
+            SystemRegisters::set_ttbr1_el1(ttbr1);
+        }
 
         SystemRegisters::set_tcr_el1(
             TranslationTableControl {
@@ -168,31 +200,43 @@ impl MMU {
         );
 
         Instr::isb();
+    }
+
+    pub unsafe fn enable_mmu() {
+        Instr::isb();
 
         SystemRegisters::set_sctlr_el1(
-            SystemRegisters::sctlr_el1() | (1 << 12) | (1 << 2) | (1 << 0),
+            //SystemRegisters::sctlr_el1() | (1 << 12) | (1 << 2) | (1 << 0),
+            SystemRegisters::sctlr_el1() | (1 << 0),
         );
 
         Instr::isb();
     }
 
-    pub unsafe fn swap_pages(page1: u64, page2: u64) {
-        let (p1l2, p1l3) = TranslationTable4G::table_index_from_address(page1);
-        let (p2l2, p2l3) = TranslationTable4G::table_index_from_address(page2);
+    pub unsafe fn swap_pages<const N: usize>(table: &mut TranslationTable<N>, page1: u64, page2: u64) {
+        let (p1l2, p1l3) = TranslationTable4G::address_to_index(page1);
+        let (p2l2, p2l3) = TranslationTable4G::address_to_index(page2);
+
+        let (a, b) = (table.l3[p1l2].pages[p1l3], table.l3[p2l2].pages[p2l3]);
+        table.l3[p1l2].pages[p1l3] = b;
+        table.l3[p2l2].pages[p2l3] = a;
 
         Instr::dsb();
         // Invalidate TLB Entries for given adressess
         // for some reason, ALLE1 does not work (execution is trapped by panic handler)
         // core::arch::asm!("TLBI  ALLE1");
-        core::arch::asm!("tlbi  VAE1, x0", in("x0") (page1));
-        core::arch::asm!("tlbi  VAE1, x1", in("x1") (page2));
-        // core::arch::asm!("dsb   ISH");
+        core::arch::asm!("
+            tlbi VMALLE1
+            dsb ISH
+            isb
+
+            tlbi  VAE1, {page1}
+            tlbi  VAE1, {page2}
+
+        ", page1 = in(reg) (page1),
+           page2 = in(reg) (page2));
+
         Instr::dsb();
         Instr::isb();
-
-        mem::swap(
-            &mut IDENTITY_TABLE.l3[p1l2][p1l3],
-            &mut IDENTITY_TABLE.l3[p2l2][p2l3],
-        );
     }
 }

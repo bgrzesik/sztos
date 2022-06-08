@@ -47,7 +47,7 @@ pub struct TranslationTable<const N: usize> {
     pub(crate) l2: [u64; N]
 }
 
-pub type TranslationTable4G = TranslationTable<{ (SHIFT_4G - SHIFT_512M) as usize }>;
+pub type TranslationTable4G = TranslationTable<{ 1 << (SHIFT_4G - SHIFT_512M) as usize }>;
 
 impl<const N: usize> TranslationTable<N> {
 
@@ -59,32 +59,56 @@ impl<const N: usize> TranslationTable<N> {
     }
 
     pub fn set_to_identity(&mut self, config: &PageDescriptor) {
-        for i2 in 0..self.l2.len() {
-            let page = self.l3[i2].as_mut_ptr() as *mut () as u64;
-            let page = page >> SHIFT_64K;
-            
-            self.l2[i2] = TableDescriptor { 
-                AP: desc::AP::ReadWrite as u64,
-                ADDR: page, 
-                TYPE: true, 
-                VALID: true 
-            }.into();
+        let start_addr = 0x0000_0000u64;
+        let end_addr = 0xFFFF_FFFFu64;
 
-            for i3 in 0..self.l3[0].len() {
-                let addr = ((i2 << SHIFT_512M) | (i3 << SHIFT_64K)) >> SHIFT_64K;
+        for addr in (start_addr..end_addr).step_by(1 << SHIFT_512M) {
+            let (i2, _) = Self::table_index_from_address(addr);
 
-                self.l3[i2][i3] = PageDescriptor { ADDR: addr as u64, ..*config }.into();
-            }
+             let page = self.l3[i2].as_mut_ptr() as *mut () as u64;
+             let page = page >> SHIFT_64K;
+
+             self.set_table_desc(addr, &TableDescriptor { AP: 0b00, ADDR: page, TYPE: true, VALID: true });
         }
+
+        for addr in (start_addr..end_addr).step_by(1 << SHIFT_64K) {
+            let offset = addr >> SHIFT_64K;
+            self.set_page_desc(addr, &PageDescriptor { ADDR: offset as u64, ..*config });
+        }
+
+        let mut desc = self.page_desc(0x1000_0000u64);
+        desc.AP = 0b01;
+        desc.UXN = true;
+        desc.PXN = true;
+        self.set_page_desc(0x1000_0000u64, &desc);
+
     }
 
-    pub fn table_index_from_address(&self, address: usize) -> (usize, usize) {
-        const L3_SIZE: usize = 1 << 13;
+    pub fn table_desc(&self, addr: u64) -> TableDescriptor {
+        let (i2, _) = Self::table_index_from_address(addr);
+        self.l2[i2].into()
+    }
 
-        (
-            (address >> SHIFT_512M) & ((1 << N) - 1),
-            (address >> SHIFT_64K) & (L3_SIZE - 1)
-        )
+    pub fn set_table_desc(&mut self, addr: u64, desc: &TableDescriptor) {
+        let (i2, _) = Self::table_index_from_address(addr);
+        self.l2[i2] = (*desc).into();
+    }
+
+    pub fn page_desc(&self, addr: u64) -> PageDescriptor {
+        let (i2, i3) = Self::table_index_from_address(addr);
+        self.l3[i2][i3].into()
+    }
+
+    pub fn set_page_desc(&mut self, addr: u64, desc: &PageDescriptor) {
+        let (i2, i3) = Self::table_index_from_address(addr);
+        self.l3[i2][i3] = (*desc).into();
+    }
+
+    pub const fn table_index_from_address(address: u64) -> (usize, usize) {
+        const L3_SIZE: u64 = 1 << 13;
+        let i2 = (address >> SHIFT_512M) & ((1 << N) - 1);
+        let i3 = (address >> SHIFT_64K) & (L3_SIZE - 1);
+        (i2 as usize, i3 as usize)
     }
 }
 
@@ -103,8 +127,8 @@ impl MMU {
 
             AF:    true,
             SH:    desc::SH::InnerShareable as u64,
-            AP:    desc::AP::ReadWrite as u64,
-            INDEX: 0b001,
+            AP:    0b00,
+            INDEX: 0b000,
             TYPE:  true,
             VALID: true,
         });
@@ -137,16 +161,16 @@ impl MMU {
         Instr::isb();
 
         SystemRegisters::set_sctlr_el1(
-            SystemRegisters::sctlr_el1() | 0b1
+            SystemRegisters::sctlr_el1() | (1 << 12) | (1 << 2) | (1 << 0)
         );
 
         Instr::isb();
     }
 
     pub unsafe fn swap_pages(page1: u64, page2: u64) {    
-        let (p1l2, p1l3) = IDENTITY_TABLE.table_index_from_address(page1 as usize);
-        let (p2l2, p2l3) = IDENTITY_TABLE.table_index_from_address(page2 as usize);
-            
+        let (p1l2, p1l3) = TranslationTable4G::table_index_from_address(page1);
+        let (p2l2, p2l3) = TranslationTable4G::table_index_from_address(page2);
+
         Instr::dsb();
         // Invalidate TLB Entries for given adressess
         // for some reason, ALLE1 does not work (execution is trapped by panic handler)

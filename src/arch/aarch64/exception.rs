@@ -80,7 +80,9 @@ unsafe extern "C" fn arch_exception(regs: &mut RegisterDump, excep: ExceptionTyp
             handle_syscall(esr.ISS, &mut regs.xn[..8], &mut regs.elr);
         },
         Ok(ExceptionClass::InstractionAbortSameEL) => {
-            loop {}
+            loop {
+                Instr::wfe();
+            }
         }
         _ => panic!("Unknown ExceptionClass"),
     }

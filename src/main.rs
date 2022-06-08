@@ -59,7 +59,9 @@ unsafe fn kernel_start() {
                             [0; 31],
                             0x1000_0000 as *mut ());
 
-        loop {}
+        loop {
+            Instr::wfe();
+        }
     }
 }
 

@@ -7,7 +7,8 @@ QEMU = 'qemu-system-aarch64'
 
 def main():
     machines = os.popen(f"{QEMU} -machine help | sed '1d' | awk -F' ' '{{ print $1; }}'").read()
-    
+    machines = machines.splitlines()
+
     machine = 'raspi3' if 'raspi3' in machines else 'raspi3b'
 
     kernel = sys.argv[1]

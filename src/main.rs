@@ -10,7 +10,6 @@ mod platform;
 mod sync;
 mod register;
 mod syscall;
-mod memory;
 
 use core::ptr::write_volatile;
 

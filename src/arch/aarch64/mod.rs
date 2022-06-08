@@ -11,9 +11,6 @@ pub use instr::*;
 mod exception;
 pub use exception::*;
 
-mod table;
-pub use table::*;
-
 mod mmu;
 pub use mmu::*;
 

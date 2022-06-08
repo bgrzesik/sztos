@@ -2,7 +2,7 @@ use crate::drivers::pl011;
 
 use crate::sync::SpinLock;
 
-pub const MMIO_RANGE: core::ops::Range<u64> = 0x3f201000..0x4000FFFF;
+pub const MMIO_RANGE: core::ops::Range<u64> = 0x3f201000..0x4000FFFFu64;
 
 #[allow(dead_code)]
 pub static mut UART0: SpinLock<pl011::Uart> = {

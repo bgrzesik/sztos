@@ -12,6 +12,8 @@ const SHIFT_4G: u64 = calc_size_shift(4 * 1024 * 1024 * 1024);
 const SHIFT_64K: u64 = calc_size_shift(64 * 1024);
 const SHIFT_512M: u64 = calc_size_shift(512 * 1024 * 1024);
 
+pub const PAGE_SIZE: usize = 64 * 1024;
+
 typed_register! {
     register PageDescriptor: u64 {
         UXN     @ 54,
@@ -177,7 +179,11 @@ impl<const N: usize> TranslationTable<N> {
     }
 
     pub fn maps(&mut self, va: u64, pa: u64, desc: Option<&PageDescriptor>) {
-        let mut desc = if let Some(desc) = desc { *desc } else { self.page_desc(va) };
+        let mut desc = if let Some(desc) = desc {
+            *desc
+        } else {
+            self.page_desc(va)
+        };
         desc.ADDR = pa >> SHIFT_64K;
         self.set_page_desc(va, &desc);
     }
@@ -252,14 +258,16 @@ impl MMU {
     pub unsafe fn enable_mmu() {
         Instr::isb();
 
-        SystemRegisters::set_sctlr_el1(
-            SystemRegisters::sctlr_el1() | (1 << 0),
-        );
+        SystemRegisters::set_sctlr_el1(SystemRegisters::sctlr_el1() | (1 << 0));
 
         Instr::isb();
     }
 
-    pub unsafe fn swap_pages<const N: usize>(table: &mut TranslationTable<N>, page1: u64, page2: u64) {
+    pub unsafe fn swap_pages<const N: usize>(
+        table: &mut TranslationTable<N>,
+        page1: u64,
+        page2: u64,
+    ) {
         let (p1l2, p1l3) = TranslationTable4G::address_to_index(page1);
         let (p2l2, p2l3) = TranslationTable4G::address_to_index(page2);
 

@@ -114,17 +114,26 @@ impl<const N: usize> TranslationTable<N> {
             let page = self.l3[i2].pages.as_mut_ptr() as *mut () as u64;
             let page = page >> SHIFT_64K;
 
-            self.set_table_desc(addr, &TableDescriptor {
-                AP: desc::AP::ReadWriteEL1 as u64,
-                ADDR: page,
-                TYPE: true,
-                VALID: true,
-            });
+            self.set_table_desc(
+                addr,
+                &TableDescriptor {
+                    AP: desc::AP::ReadWriteEL1 as u64,
+                    ADDR: page,
+                    TYPE: true,
+                    VALID: true,
+                },
+            );
         }
 
         for addr in (start_addr..end_addr).step_by(1 << SHIFT_64K) {
             let offset = (addr >> SHIFT_64K) as u64;
-            self.set_page_desc(addr, &PageDescriptor { ADDR: offset, ..*config });
+            self.set_page_desc(
+                addr,
+                &PageDescriptor {
+                    ADDR: offset,
+                    ..*config
+                },
+            );
         }
 
         for addr in (0x3000_0000..0x4000_0000).step_by(1 << SHIFT_64K) {
@@ -155,7 +164,7 @@ impl<const N: usize> TranslationTable<N> {
     pub const fn address_to_index(address: u64) -> (usize, usize) {
         (
             Level2TranslationTable::<N>::address_to_index(address),
-            Level3TranslationTable::address_to_index(address)
+            Level3TranslationTable::address_to_index(address),
         )
     }
 
@@ -167,7 +176,6 @@ impl<const N: usize> TranslationTable<N> {
 pub struct MMU;
 
 impl MMU {
-
     pub unsafe fn set_tables(ttbr0: u64, ttbr1: Option<u64>) {
         SystemRegisters::set_ttbr0_el1(ttbr0);
 
@@ -213,7 +221,11 @@ impl MMU {
         Instr::isb();
     }
 
-    pub unsafe fn swap_pages<const N: usize>(table: &mut TranslationTable<N>, mut page1: u64, mut page2: u64) {
+    pub unsafe fn swap_pages<const N: usize>(
+        table: &mut TranslationTable<N>,
+        mut page1: u64,
+        mut page2: u64,
+    ) {
         let (p1l2, p1l3) = TranslationTable4G::address_to_index(page1);
         let (p2l2, p2l3) = TranslationTable4G::address_to_index(page2);
 
@@ -223,11 +235,12 @@ impl MMU {
 
         page1 >>= 12;
         page2 >>= 12;
+
         Instr::dsb();
+
         core::arch::asm!("
             tlbi  VAE1, {page1}
             tlbi  VAE1, {page2}
-
         ", page1 = in(reg) (page1),
            page2 = in(reg) (page2));
 

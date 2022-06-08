@@ -36,7 +36,10 @@ unsafe extern "C" fn arch_start() {
         VALID: true,
     });
 
-    MMU::set_tables(KERNEL_TABLE.base_address(), Some(KERNEL_TABLE.base_address()));
+    MMU::set_tables(
+        KERNEL_TABLE.base_address(),
+        Some(KERNEL_TABLE.base_address()),
+    );
     MMU::enable_mmu();
 
     kernel_start();

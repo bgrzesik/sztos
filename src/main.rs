@@ -20,6 +20,7 @@ unsafe fn kernel_start() {
     loop { 
         let p1 = 0x2137_0000;
         let p2 = 0x2138_0000;
+        
         //                    \n  !  o  l  l  e  H          
         let hello_le: u64 = 0x0A_21_6F_6C_6C_65_48;
         //                    \n  !  d  l  r  o  W
@@ -29,8 +30,8 @@ unsafe fn kernel_start() {
         write_volatile(p2 as *mut u64, world_le);
         
         // Invalidate cache entries for given adresssess
-        core::arch::asm!("DC    IVAC, x0", in("x0") (p1));
-        core::arch::asm!("DC    IVAC, x0", in("x0") (p2));
+        core::arch::asm!("dc    IVAC, x0", in("x0") (p1));
+        core::arch::asm!("dc    IVAC, x0", in("x0") (p2));
         Instr::dsb();
         
         MMU::swap_pages(p1, p2);

@@ -1,9 +1,11 @@
 #[allow(unused)]
+#[repr(u64)]
 pub enum XN {
     ExecuteAlways   = 0,
     ExecuteNever    = 1,
 }
 
+#[repr(u64)]
 #[allow(unused)]
 pub enum AP {
     ReadWriteEL1    = 0b00,
@@ -15,6 +17,7 @@ pub enum AP {
 // TCR 
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum TBI {
     NoTagging   = 0b00,
     TagTTBR0    = 0b01,
@@ -23,6 +26,7 @@ pub enum TBI {
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum IPS {
     Bits32      = 0b000,
     Bits36      = 0b001,
@@ -34,6 +38,7 @@ pub enum IPS {
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum TG1 {
     Granule16KiB    = 0b01,
     Granule4KiB     = 0b10,
@@ -41,6 +46,7 @@ pub enum TG1 {
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum TG0 {
     Granule4KiB     = 0b00,
     Granule16KiB    = 0b10,
@@ -48,6 +54,7 @@ pub enum TG0 {
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum SH {
     NonShareable    = 0b00,
     OuterShareable  = 0b10,
@@ -55,6 +62,7 @@ pub enum SH {
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum RGN {
     NonCacheable        = 0b00,
     WbRaWaCacheable     = 0b01,
@@ -63,12 +71,14 @@ pub enum RGN {
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum EPD {
     TranslationWalk     = 0,
     TranslationFault    = 1,
 }
 
 #[allow(unused)]
+#[repr(u64)]
 pub enum A {
     TTBR0Define         = 0,
     TTBR1Define         = 1,

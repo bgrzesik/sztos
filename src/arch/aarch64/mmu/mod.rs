@@ -105,6 +105,27 @@ impl<const N: usize> TranslationTable<N> {
         }
     }
 
+    pub fn init_level2(&mut self) {
+        let start_addr = 0x0000_0000u64;
+        let end_addr = 0x1_0000_0000u64;
+
+        for addr in (start_addr..end_addr).step_by(1 << SHIFT_512M) {
+            let i2 = Level2TranslationTable::<N>::address_to_index(addr);
+            let page = self.l3[i2].pages.as_mut_ptr() as *mut () as u64;
+            let page = page >> SHIFT_64K;
+
+            self.set_table_desc(
+                addr,
+                &TableDescriptor {
+                    AP: desc::AP::ReadWriteEL1 as u64,
+                    ADDR: page,
+                    TYPE: true,
+                    VALID: true,
+                },
+            );
+        }
+    }
+
     pub fn set_to_identity(&mut self, config: &PageDescriptor) {
         let start_addr = 0x0000_0000u64;
         let end_addr = 0x1_0000_0000u64;
@@ -135,12 +156,6 @@ impl<const N: usize> TranslationTable<N> {
                 },
             );
         }
-
-        for addr in (0x3000_0000..0x4000_0000).step_by(1 << SHIFT_64K) {
-            let mut desc = self.page_desc(addr);
-            desc.AP = desc::AP::ReadWrite as u64;
-            self.set_page_desc(addr, &desc);
-        }
     }
 
     pub fn table_desc(&self, addr: u64) -> TableDescriptor {
@@ -161,6 +176,18 @@ impl<const N: usize> TranslationTable<N> {
         self.l3[i2].set_page_desc(addr, desc)
     }
 
+    pub fn maps(&mut self, va: u64, pa: u64, desc: Option<&PageDescriptor>) {
+        let mut desc = if let Some(desc) = desc { *desc } else { self.page_desc(va) };
+        desc.ADDR = pa >> SHIFT_64K;
+        self.set_page_desc(va, &desc);
+    }
+
+    pub fn unmap(&mut self, va: u64) {
+        let mut desc = self.page_desc(va);
+        desc.VALID = false;
+        self.set_page_desc(va, &desc);
+    }
+
     pub const fn address_to_index(address: u64) -> (usize, usize) {
         (
             Level2TranslationTable::<N>::address_to_index(address),
@@ -170,6 +197,18 @@ impl<const N: usize> TranslationTable<N> {
 
     pub fn base_address(&self) -> u64 {
         self.l2.tables.as_ptr() as u64
+    }
+
+    pub unsafe fn invalidate(vas: &[u64]) {
+        Instr::dsb();
+
+        for va in vas {
+            let va = va >> 12;
+            core::arch::asm!(" tlbi VAE1, {page} ", page = in(reg) (va));
+        }
+
+        Instr::dsb();
+        Instr::isb();
     }
 }
 
@@ -214,18 +253,13 @@ impl MMU {
         Instr::isb();
 
         SystemRegisters::set_sctlr_el1(
-            //SystemRegisters::sctlr_el1() | (1 << 12) | (1 << 2) | (1 << 0),
             SystemRegisters::sctlr_el1() | (1 << 0),
         );
 
         Instr::isb();
     }
 
-    pub unsafe fn swap_pages<const N: usize>(
-        table: &mut TranslationTable<N>,
-        mut page1: u64,
-        mut page2: u64,
-    ) {
+    pub unsafe fn swap_pages<const N: usize>(table: &mut TranslationTable<N>, page1: u64, page2: u64) {
         let (p1l2, p1l3) = TranslationTable4G::address_to_index(page1);
         let (p2l2, p2l3) = TranslationTable4G::address_to_index(page2);
 
@@ -233,18 +267,6 @@ impl MMU {
         table.l3[p1l2].pages[p1l3] = b;
         table.l3[p2l2].pages[p2l3] = a;
 
-        page1 >>= 12;
-        page2 >>= 12;
-
-        Instr::dsb();
-
-        core::arch::asm!("
-            tlbi  VAE1, {page1}
-            tlbi  VAE1, {page2}
-        ", page1 = in(reg) (page1),
-           page2 = in(reg) (page2));
-
-        Instr::dsb();
-        Instr::isb();
+        TranslationTable4G::invalidate(&[page1, page2]);
     }
 }

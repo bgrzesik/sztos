@@ -14,6 +14,8 @@ pub use exception::*;
 mod mmu;
 pub use mmu::*;
 
+use crate::platform::*;
+
 pub static mut KERNEL_TABLE: mmu::TranslationTable4G = mmu::TranslationTable4G::zeroed();
 
 #[no_mangle]
@@ -22,7 +24,43 @@ unsafe extern "C" fn arch_start() {
         Instr::wfe()
     }
 
-    KERNEL_TABLE.set_to_identity(&PageDescriptor {
+    KERNEL_TABLE.init_level2();
+
+    for addr in MMIO_RANGE.step_by(64 * 1024) {
+        let desc = PageDescriptor {
+            UXN: false,
+            PXN: false,
+
+            ADDR: 0,
+
+            AF: true,
+            SH: desc::SH::InnerShareable as u64,
+            AP: 0b00,
+            INDEX: 0b000,
+            TYPE: true,
+            VALID: true,
+        };
+        KERNEL_TABLE.maps(addr, addr, Some(&desc));
+    }
+
+    for addr in (0x6_0000..0x20_0000).step_by(64 * 1024) {
+        let desc = PageDescriptor {
+            UXN: false,
+            PXN: false,
+
+            ADDR: 0,
+
+            AF: true,
+            SH: desc::SH::InnerShareable as u64,
+            AP: 0b00,
+            INDEX: 0b000,
+            TYPE: true,
+            VALID: true,
+        };
+        KERNEL_TABLE.maps(addr, addr, Some(&desc));
+    }
+
+    let desc = PageDescriptor {
         UXN: false,
         PXN: false,
 
@@ -30,15 +68,22 @@ unsafe extern "C" fn arch_start() {
 
         AF: true,
         SH: desc::SH::InnerShareable as u64,
-        AP: 0b00,
+        AP: 0b01,
         INDEX: 0b000,
         TYPE: true,
         VALID: true,
-    });
+    };
+    KERNEL_TABLE.maps(0x2137_0000, 0x2137_0000, Some(&desc));
+    KERNEL_TABLE.maps(0x2138_0000, 0x2138_0000, Some(&desc));
+
+    KERNEL_TABLE.maps(0x3000_8000 - 2 * 64 * 1024, 0x3000_8000 - 2 * 64 * 1024, Some(&desc));
+    KERNEL_TABLE.maps(0x3000_8000 - 64 * 1024, 0x3000_8000 - 64 * 1024, Some(&desc));
+    KERNEL_TABLE.maps(0x3000_8000, 0x3000_8000, Some(&desc));
+
 
     MMU::set_tables(
         KERNEL_TABLE.base_address(),
-        Some(KERNEL_TABLE.base_address()),
+        None,
     );
     MMU::enable_mmu();
 

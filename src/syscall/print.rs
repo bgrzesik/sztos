@@ -1,6 +1,5 @@
-
-use core::fmt::Write;
 use crate::platform::*;
+use core::fmt::Write;
 
 pub fn handle(args: &mut [u64], ret_pc: &mut *mut ()) {
     let uart = unsafe { &mut *UART0.lock() };

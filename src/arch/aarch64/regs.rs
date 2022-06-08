@@ -1,8 +1,4 @@
-use core::{
-    stringify,
-    concat,
-    arch::asm,
-};
+use core::{arch::asm, concat, stringify};
 
 use crate::typed_register;
 
@@ -38,7 +34,7 @@ macro_rules! system_register_rw {
     ($name: ident, $set_name: ident, $reg: ident) => {
         system_register!($name, $reg);
         system_register_setter!($set_name, $reg);
-    }
+    };
 }
 
 pub struct SystemRegisters;
@@ -50,15 +46,15 @@ impl SystemRegisters {
     system_register!(spsel, SPsel);
     system_register!(esr, ESR_EL1);
 
-    system_register_rw!(sp_el0,    set_sp_el0,    SP_EL0);
-    system_register_rw!(sp_el1,    set_sp_el1,    SP_EL1);
-    system_register_rw!(tcr_el0,   set_tcr_el0,   TCR_EL0);
-    system_register_rw!(tcr_el1,   set_tcr_el1,   TCR_EL1);
+    system_register_rw!(sp_el0, set_sp_el0, SP_EL0);
+    system_register_rw!(sp_el1, set_sp_el1, SP_EL1);
+    system_register_rw!(tcr_el0, set_tcr_el0, TCR_EL0);
+    system_register_rw!(tcr_el1, set_tcr_el1, TCR_EL1);
     system_register_rw!(ttbr0_el0, set_ttbr0_el0, TTBR0_EL0);
     system_register_rw!(ttbr0_el1, set_ttbr0_el1, TTBR0_EL1);
     system_register_rw!(ttbr1_el1, set_ttbr1_el1, TTBR1_EL1);
     system_register_rw!(sctlr_el1, set_sctlr_el1, SCTLR_EL1);
-    system_register_rw!(mair_el1, set_mair_el1,   MAIR_EL1);
+    system_register_rw!(mair_el1, set_mair_el1, MAIR_EL1);
 }
 
 typed_register! {
@@ -90,18 +86,16 @@ typed_register! {
     }
 }
 
-
 pub struct System;
-
 
 #[repr(u8)]
 #[derive(Eq, PartialEq, Debug)]
 pub enum ExceptionLevel {
-    User          = 0x00, // EL0
-    Kernel        = 0x01, // EL1
-    Hypervisor    = 0x02, // EL2
+    User = 0x00,          // EL0
+    Kernel = 0x01,        // EL1
+    Hypervisor = 0x02,    // EL2
     SecureMonitor = 0x03, // EL3
-    Unknown       = 0xff,
+    Unknown = 0xff,
 }
 
 impl System {
@@ -125,8 +119,7 @@ impl System {
             0b0001 => ExceptionLevel::Kernel,
             0b0010 => ExceptionLevel::Hypervisor,
             0b0011 => ExceptionLevel::SecureMonitor,
-                 _ => ExceptionLevel::Unknown,
+            _ => ExceptionLevel::Unknown,
         }
     }
 }
-

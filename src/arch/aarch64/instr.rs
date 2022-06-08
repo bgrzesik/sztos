@@ -1,6 +1,5 @@
 use core::arch::asm;
 
-
 pub struct Instr;
 
 impl Instr {

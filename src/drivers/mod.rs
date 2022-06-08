@@ -1,35 +1,37 @@
 use crate::register::TypedRegister;
 
-pub trait ReadableRegister {
-}
+pub trait ReadableRegister {}
 
-pub trait WritableRegister {
-}
+pub trait WritableRegister {}
 
 pub trait DeviceRegister<T> {
     fn get_address(&self) -> usize;
 
     unsafe fn get_ptr(&self) -> *const T
-        where Self: ReadableRegister
+    where
+        Self: ReadableRegister,
     {
         (self.get_address() as *const ()) as *const T
     }
 
     fn value(&self) -> T
-        where Self: ReadableRegister
+    where
+        Self: ReadableRegister,
     {
         unsafe { core::ptr::read_volatile(self.get_ptr()) }
     }
 
     // TODO(bgrzesik) reconsider switching to mut self
     unsafe fn get_mut_ptr(&self) -> *mut T
-        where Self: WritableRegister
+    where
+        Self: WritableRegister,
     {
         (self.get_address() as *mut ()) as *mut T
     }
 
     fn set_value(&self, value: T)
-        where Self: WritableRegister
+    where
+        Self: WritableRegister,
     {
         // TODO(bgrzesik) add barriers?
         unsafe { core::ptr::write_volatile(self.get_mut_ptr(), value) }
@@ -37,22 +39,24 @@ pub trait DeviceRegister<T> {
 }
 
 pub trait TypedDeviceRegister<T, R: TypedRegister<T>>: DeviceRegister<T> {
-
     fn typed(&self) -> R
-        where Self: ReadableRegister
+    where
+        Self: ReadableRegister,
     {
         R::from(self.value())
     }
 
     fn set_typed(&self, value: R)
-        where Self: WritableRegister
+    where
+        Self: WritableRegister,
     {
         self.set_value(value.into());
     }
 
     fn update_typed<F, Z>(&self, update_fn: F) -> Z
-        where Self: ReadableRegister + WritableRegister,
-              F: FnOnce(&mut R) -> Z
+    where
+        Self: ReadableRegister + WritableRegister,
+        F: FnOnce(&mut R) -> Z,
     {
         let mut value: R = self.typed();
         let ret: Z = update_fn(&mut value);
@@ -60,7 +64,6 @@ pub trait TypedDeviceRegister<T, R: TypedRegister<T>>: DeviceRegister<T> {
 
         return ret;
     }
-
 }
 
 #[macro_export]
@@ -127,10 +130,10 @@ macro_rules! device_register_map {
         $crate::device_register_map!( !device_register wo, $reg );
     };
 
-    { 
-        $( 
-            // REG @ 0xffff u64 
-            $reg:ident @ $offset:literal $rw:ident $reg_ty:ty 
+    {
+        $(
+            // REG @ 0xffff u64
+            $reg:ident @ $offset:literal $rw:ident $reg_ty:ty
             $( : $fields:tt )?
          ),*
     } => {
@@ -140,7 +143,7 @@ macro_rules! device_register_map {
 
         pub mod regs {
             use $crate::drivers::*;
-            $( 
+            $(
                 #[allow(dead_code)]
                 pub struct $reg(pub /* addr */ usize);
 

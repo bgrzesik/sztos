@@ -1,6 +1,6 @@
 use crate::device_register_map;
 
-use super::{TypedDeviceRegister, DeviceRegister};
+use super::{DeviceRegister, TypedDeviceRegister};
 
 device_register_map! {
 
@@ -168,7 +168,7 @@ device_register_map! {
 #[allow(unused)]
 pub struct Config {
     pub base_addr: usize,
-    pub base_clk: u64
+    pub base_clk: u64,
 }
 
 #[allow(unused)]
@@ -199,12 +199,17 @@ impl Uart {
     pub const fn new(cfg: &Config, baudrate: u32, stop: StopBit, parity: Option<Parity>) -> Self {
         let reg = Registers(cfg.base_addr);
 
-        Self { reg, base_clk: cfg.base_clk, baudrate, stop, parity }
+        Self {
+            reg,
+            base_clk: cfg.base_clk,
+            baudrate,
+            stop,
+            parity,
+        }
     }
 
     pub fn reset(&mut self) {
-        self.reg.CR()
-            .update_typed(|cr| cr.UARTEN = false);
+        self.reg.CR().update_typed(|cr| cr.UARTEN = false);
 
         self.wait_non_busy();
 
@@ -234,12 +239,11 @@ impl Uart {
 
         self.reg.DMACR().set_typed(DMACR::default());
 
-        self.reg.CR()
-            .update_typed(|cr| {
-                cr.TXE = true;
-                cr.RXE = true;
-                cr.UARTEN = true;
-            });
+        self.reg.CR().update_typed(|cr| {
+            cr.TXE = true;
+            cr.RXE = true;
+            cr.UARTEN = true;
+        });
     }
 
     pub fn write_byte(&mut self, c: u8) {
@@ -268,4 +272,3 @@ impl core::fmt::Write for Uart {
         Ok(())
     }
 }
-

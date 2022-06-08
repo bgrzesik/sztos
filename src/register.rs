@@ -1,13 +1,11 @@
-
-pub trait TypedRegister<T> : From<T> + Into<T> {
-}
+pub trait TypedRegister<T>: From<T> + Into<T> {}
 
 #[macro_export]
 macro_rules! typed_register {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    ( !field_val $field:tt, $reg_ty:ty, $bit:literal,) => { 
+    ( !field_val $field:tt, $reg_ty:ty, $bit:literal,) => {
         ($field & (1 << $bit)) == (1 << $bit)
     };
 
@@ -19,7 +17,7 @@ macro_rules! typed_register {
         }
     };
 
-    ( !field_num $field:tt, $reg_ty:ty, $bit:literal,) => { 
+    ( !field_num $field:tt, $reg_ty:ty, $bit:literal,) => {
         (if $field { 1 << $bit } else { 0 })
     };
 

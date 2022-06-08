@@ -1,5 +1,3 @@
-
-
 #[repr(u32)]
 enum SyscallNo {
     Noop = 0,
@@ -23,7 +21,6 @@ impl core::convert::TryFrom<u32> for SyscallNo {
     }
 }
 
-
 mod print;
 
 pub fn handle_syscall(no: u64, args: &mut [u64], ret_pc: &mut *mut ()) {
@@ -42,4 +39,3 @@ extern "C" {
     #[allow(unused)]
     fn syscall(no: u64, args: ...);
 }
-

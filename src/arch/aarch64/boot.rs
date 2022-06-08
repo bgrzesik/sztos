@@ -1,8 +1,8 @@
-
 use core::arch::global_asm;
 
 // aarch64 main entry point
-global_asm!(r#"
+global_asm!(
+    r#"
     .section .text._start
 
     _start:
@@ -80,4 +80,5 @@ global_asm!(r#"
 
     .global _start
     .size _start, . - _start
-"#);
+"#
+);

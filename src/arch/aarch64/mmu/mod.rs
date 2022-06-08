@@ -1,4 +1,4 @@
-use core::arch::asm;
+use core::mem;
 
 use crate::{
     typed_register,
@@ -8,6 +8,8 @@ use crate::{
 const fn calc_size_shift(size: u64) -> u64 {
     size.trailing_zeros() as u64
 }
+
+mod desc;
 
 const SHIFT_4G: u64 = calc_size_shift(4 * 1024 * 1024 * 1024);
 const SHIFT_512M: u64 = calc_size_shift(512 * 1024 * 1024);
@@ -26,9 +28,12 @@ typed_register! {
         VALID   @ 0
     }
 }
- 
+
+// according to: https://armv8-ref.codingbelief.com/en/chapter_d4/d44_1_memory_access_control.html
+// and: https://armv8-ref.codingbelief.com/en/chapter_d4/d43_3_memory_attribute_fields_in_the_vmsav8-64_translation_table_formats_descriptors.html
 typed_register! {
     register TableDescriptor: u64 {
+        AP      @ 62:61,
         ADDR    @ 47:16,
         TYPE    @ 1,
         VALID   @ 0
@@ -57,8 +62,13 @@ impl<const N: usize> TranslationTable<N> {
         for i2 in 0..self.l2.len() {
             let page = self.l3[i2].as_mut_ptr() as *mut () as u64;
             let page = page >> SHIFT_64K;
-
-            self.l2[i2] = TableDescriptor { ADDR: page, TYPE: true, VALID: true }.into();
+            
+            self.l2[i2] = TableDescriptor { 
+                AP: desc::AP::ReadWrite as u64,
+                ADDR: page, 
+                TYPE: true, 
+                VALID: true 
+            }.into();
 
             for i3 in 0..self.l3[0].len() {
                 let addr = ((i2 << SHIFT_512M) | (i3 << SHIFT_64K)) >> SHIFT_64K;
@@ -67,7 +77,17 @@ impl<const N: usize> TranslationTable<N> {
             }
         }
     }
+
+    pub fn table_index_from_address(&self, address: usize) -> (usize, usize) {
+        const L3_SIZE: usize = 1 << 13;
+
+        (
+            (address >> SHIFT_512M) & ((1 << N) - 1),
+            (address >> SHIFT_64K) & (L3_SIZE - 1)
+        )
+    }
 }
+
 
 static mut IDENTITY_TABLE: TranslationTable4G = TranslationTable4G::zeroed();
 
@@ -82,8 +102,8 @@ impl MMU {
             ADDR:  0,
 
             AF:    true,
-            SH:    0b11,
-            AP:    0b00,
+            SH:    desc::SH::InnerShareable as u64,
+            AP:    desc::AP::ReadWrite as u64,
             INDEX: 0b001,
             TYPE:  true,
             VALID: true,
@@ -94,23 +114,23 @@ impl MMU {
         );
 
         SystemRegisters::set_tcr_el1(TranslationTableControl {
-            TBI:   0b00,
-            IPS:   0x010,
+            TBI:   desc::TBI::NoTagging as u64,
+            IPS:   desc::IPS::Bits40 as u64,
 
-            TG1:   0b00,
-            SH1:   0b00,
-            ORGN1: 0b00,
-            IRGN1: 0b00,
-            EPD1:  true,
-            A1:    false,
+            TG1:   desc::TG1::Granule64KiB as u64,
+            SH1:   desc::SH::InnerShareable as u64,
+            ORGN1: desc::RGN::NonCacheable as u64,
+            IRGN1: desc::RGN::NonCacheable as u64,
+            EPD1:  desc::EPD::TranslationWalk as u64 != 0,
+            A1:    desc::A::TTBR0Define as u64 != 0,
             T1SZ:  0,
 
-            TG0:   0b01,
-            SH0:   0b11,
-            ORGN0: 0b01,
-            IRGN0: 0b01,
+            TG0:   desc::TG0::Granule64KiB as u64,
+            SH0:   desc::SH::InnerShareable as u64,
+            ORGN0: desc::RGN::NonCacheable as u64,
+            IRGN0: desc::RGN::NonCacheable as u64,
             //
-            EPD0:  false,
+            EPD0:  desc::EPD::TranslationWalk as u64 != 0,
             T0SZ:  (64 - SHIFT_4G),
         }.into());
 
@@ -121,5 +141,22 @@ impl MMU {
         );
 
         Instr::isb();
+    }
+
+    pub unsafe fn swap_pages(page1: u64, page2: u64) {    
+        let (p1l2, p1l3) = IDENTITY_TABLE.table_index_from_address(page1 as usize);
+        let (p2l2, p2l3) = IDENTITY_TABLE.table_index_from_address(page2 as usize);
+            
+        Instr::dsb();
+        // Invalidate TLB Entries for given adressess
+        // for some reason, ALLE1 does not work (execution is trapped by panic handler)
+        // core::arch::asm!("TLBI  ALLE1");
+        core::arch::asm!("tlbi  VAE1, x0", in("x0") (page1));
+        core::arch::asm!("tlbi  VAE1, x1", in("x1") (page2));
+        // core::arch::asm!("dsb   ISH");
+        Instr::dsb();
+        Instr::isb();
+
+        mem::swap(&mut IDENTITY_TABLE.l3[p1l2][p1l3], &mut IDENTITY_TABLE.l3[p2l2][p2l3]);
     }
 }

@@ -35,9 +35,11 @@ unsafe fn kernel_start() {
         Instr::dsb();
         
         MMU::swap_pages(p1, p2);
-        Instr::dsb();
 
-        core::arch::asm!("svc 0");
+        // Instr::dsb();
+        core::arch::asm!("dsb SY");
+
+        // core::arch::asm!("svc 0");
         
         core::arch::asm!("svc 1", in("x0") (p1), in("x1") (7));
         core::arch::asm!("svc 1", in("x0") (p2), in("x1") (7));

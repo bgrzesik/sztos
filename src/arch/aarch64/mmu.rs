@@ -79,9 +79,11 @@ impl<const N: usize> TranslationTable<N> {
     }
 
     pub fn table_index_from_address(&self, address: usize) -> (usize, usize) {
+        const L3_SIZE: usize = 1 << 13;
+
         (
             (address >> SHIFT_512M) & ((1 << N) - 1),
-            (address >> SHIFT_64K) & (self.l3.len() - 1)
+            (address >> SHIFT_64K) & (L3_SIZE - 1)
         )
     }
 }
@@ -144,8 +146,7 @@ impl MMU {
     pub unsafe fn swap_pages(page1: u64, page2: u64) {    
         let (p1l2, p1l3) = IDENTITY_TABLE.table_index_from_address(page1 as usize);
         let (p2l2, p2l3) = IDENTITY_TABLE.table_index_from_address(page2 as usize);
-        
-        // Make sure our write is in
+            
         Instr::dsb();
         // Invalidate TLB Entries for given adressess
         // for some reason, ALLE1 does not work (execution is trapped by panic handler)

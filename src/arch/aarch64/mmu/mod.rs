@@ -213,7 +213,7 @@ impl MMU {
         Instr::isb();
     }
 
-    pub unsafe fn swap_pages<const N: usize>(table: &mut TranslationTable<N>, page1: u64, page2: u64) {
+    pub unsafe fn swap_pages<const N: usize>(table: &mut TranslationTable<N>, mut page1: u64, mut page2: u64) {
         let (p1l2, p1l3) = TranslationTable4G::address_to_index(page1);
         let (p2l2, p2l3) = TranslationTable4G::address_to_index(page2);
 
@@ -221,15 +221,10 @@ impl MMU {
         table.l3[p1l2].pages[p1l3] = b;
         table.l3[p2l2].pages[p2l3] = a;
 
+        page1 >>= 12;
+        page2 >>= 12;
         Instr::dsb();
-        // Invalidate TLB Entries for given adressess
-        // for some reason, ALLE1 does not work (execution is trapped by panic handler)
-        // core::arch::asm!("TLBI  ALLE1");
         core::arch::asm!("
-            tlbi VMALLE1
-            dsb ISH
-            isb
-
             tlbi  VAE1, {page1}
             tlbi  VAE1, {page2}
 

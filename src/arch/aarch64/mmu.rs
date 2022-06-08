@@ -5,14 +5,13 @@ use crate::{
     arch::*
 };
 
-pub struct Granule<const N: usize>;
-
-impl<const N: usize> Granule<N> {
-    pub const SHIFT: u64 = N.trailing_zeros() as u64;
+const fn calc_size_shift(size: u64) -> u64 {
+    size.trailing_zeros() as u64
 }
 
-pub type Granule512MiB = Granule<{ 512 * 1024 * 1024 }>;
-pub type Granule64KiB = Granule<{ 64 * 1024 }>;
+const SHIFT_4G: u64 = calc_size_shift(4 * 1024 * 1024 * 1024);
+const SHIFT_512M: u64 = calc_size_shift(512 * 1024 * 1024);
+const SHIFT_64K: u64 = calc_size_shift(64 * 1024);
 
 typed_register! {
     register PageDescriptor: u64 {
@@ -39,100 +38,81 @@ typed_register! {
 #[repr(C)]
 #[repr(align(65536))]
 pub struct TranslationTable<const N: usize> {
-    pub(crate) lvl3: [[u64; 8192]; N],
-    pub(crate) lvl2: [u64; N]
+    pub(crate) l3: [[u64; 8192]; N],
+    pub(crate) l2: [u64; N]
 }
 
-pub type KernelTranslationTable = TranslationTable<{ 0x1_0000_0000 >> Granule512MiB::SHIFT }>;
+pub type TranslationTable4G = TranslationTable<{ (SHIFT_4G - SHIFT_512M) as usize }>;
 
 impl<const N: usize> TranslationTable<N> {
 
-    pub const fn new() -> Self {
+    pub const fn zeroed() -> Self {
         Self { 
-            lvl3: [[0; 8192]; N], 
-            lvl2: [0; N]
+            l3: [[0; 8192]; N],
+            l2: [0; N]
         }
     }
 
-    pub fn map_one_to_one(&mut self, config: &PageDescriptor) {
-        for i2 in 0..self.lvl2.len() {
-            let page = self.lvl3[i2].as_mut_ptr() as *mut () as u64;
-            let page = page >> Granule64KiB::SHIFT;
+    pub fn set_to_identity(&mut self, config: &PageDescriptor) {
+        for i2 in 0..self.l2.len() {
+            let page = self.l3[i2].as_mut_ptr() as *mut () as u64;
+            let page = page >> SHIFT_64K;
 
-            self.lvl2[i2] = TableDescriptor { ADDR: page, TYPE: true, VALID: true }.into();
+            self.l2[i2] = TableDescriptor { ADDR: page, TYPE: true, VALID: true }.into();
 
-            for i3 in 0..self.lvl3[0].len() {
-                // let addr = ((i2 << Granule512MiB::SHIFT) + (i3 << Granule64KiB::SHIFT)) as u64;
-                // let addr = addr >> Granule64KiB::SHIFT;
-                let addr = (i2 * (512 * 1024 * 1024) + i3 * (64 * 1024)) as u64;
-                let addr = addr >> Granule64KiB::SHIFT;
+            for i3 in 0..self.l3[0].len() {
+                let addr = ((i2 << SHIFT_512M) | (i3 << SHIFT_64K)) >> SHIFT_64K;
 
-                self.lvl3[i2][i3] = PageDescriptor { ADDR: addr, ..*config }.into();
+                self.l3[i2][i3] = PageDescriptor { ADDR: addr as u64, ..*config }.into();
             }
         }
     }
 }
 
-static mut table0: KernelTranslationTable = KernelTranslationTable::new();
-// static mut table1: KernelTranslationTable = KernelTranslationTable::new();
-
+static mut IDENTITY_TABLE: TranslationTable4G = TranslationTable4G::zeroed();
 
 pub struct MMU;
 
 impl MMU {
     pub unsafe fn enable() {
-        asm!("dsb ishst");
-        asm!("dsb ish");
-        asm!("isb");
+        IDENTITY_TABLE.set_to_identity(&PageDescriptor {
+            UXN:   false,
+            PXN:   false,
 
-        table0.map_one_to_one(&PageDescriptor {
-            UXN: false,
-            PXN: false,
+            ADDR:  0,
 
-            ADDR: 0,
-
-            AF: true,
-            SH: 0b11,
-            AP: 0b00,
+            AF:    true,
+            SH:    0b11,
+            AP:    0b00,
             INDEX: 0b001,
-            TYPE: true,
+            TYPE:  true,
             VALID: true,
         });
 
         SystemRegisters::set_ttbr0_el1(
-            table0.lvl2.as_mut_ptr() as *mut () as u64
+            IDENTITY_TABLE.l2.as_mut_ptr() as *mut () as u64
         );
 
-        SystemRegisters::set_tcr_el1(
-            0x0000000200807520
-        );
+        SystemRegisters::set_tcr_el1(TranslationTableControl {
+            TBI:   0b00,
+            IPS:   0x010,
 
-        // SystemRegisters::set_tcr_el1(TranslationTableControl {
-        //     TBI:    0b00,
-        //     IPS:    0b010,
+            TG1:   0b00,
+            SH1:   0b00,
+            ORGN1: 0b00,
+            IRGN1: 0b00,
+            EPD1:  true,
+            A1:    false,
+            T1SZ:  0,
 
-        //     TG1:    0b11,
-        //     SH1:    0b11,
-        //     ORGN1:  0b01,
-        //     IRGN1:  0b01,
-        //     EPD1:   true,
-        //     A1:     false,
-        //     T1SZ:   64 - Granule64KiB::SHIFT,
-
-        //     TG0:    0b01,
-        //     SH0:    0b11,
-        //     ORGN0:  0b01,
-        //     IRGN0:  0b01,
-        //     EPD0:   false,
-        //     T0SZ:   64 - Granule64KiB::SHIFT,
-        // }.into());
-
-        // Instr::isb();
-
-        // SystemRegisters::set_mair_el1(
-        //     // 0x0044_04FFu64
-        //     0x000000000000ff04
-        // );
+            TG0:   0b01,
+            SH0:   0b11,
+            ORGN0: 0b01,
+            IRGN0: 0b01,
+            //
+            EPD0:  false,
+            T0SZ:  (64 - SHIFT_4G),
+        }.into());
 
         Instr::isb();
 

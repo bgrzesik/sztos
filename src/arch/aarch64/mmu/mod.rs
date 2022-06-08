@@ -132,21 +132,7 @@ impl<const N: usize> TranslationTable<N> {
         let start_addr = 0x0000_0000u64;
         let end_addr = 0x1_0000_0000u64;
 
-        for addr in (start_addr..end_addr).step_by(1 << SHIFT_512M) {
-            let i2 = Level2TranslationTable::<N>::address_to_index(addr);
-            let page = self.l3[i2].pages.as_mut_ptr() as *mut () as u64;
-            let page = page >> SHIFT_64K;
-
-            self.set_table_desc(
-                addr,
-                &TableDescriptor {
-                    AP: desc::AP::ReadWriteEL1 as u64,
-                    ADDR: page,
-                    TYPE: true,
-                    VALID: true,
-                },
-            );
-        }
+        self.init_level2();
 
         for addr in (start_addr..end_addr).step_by(1 << SHIFT_64K) {
             let offset = (addr >> SHIFT_64K) as u64;
